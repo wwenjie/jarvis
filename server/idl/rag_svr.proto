@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package your_service;
+
+// 定义用户消息结构
+message User {
+  string id = 1;
+  string name = 2;
+  int32 age = 3;
+}
+
+// 定义获取用户请求
+message GetUserRequest {
+  string id = 1;
+}
+
+// 定义获取用户响应
+message GetUserResponse {
+  User user = 1;
+}
+
+// 定义用户服务
+service UserService {
+  // 获取用户信息的RPC方法
+  rpc GetUser (GetUserRequest) returns (GetUserResponse);
+}
