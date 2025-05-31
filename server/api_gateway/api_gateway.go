@@ -6,8 +6,8 @@ import (
 	"log"
 	"time"
 
-	client "your_project/kitex_gen/your_service/client"
-	"your_project/kitex_gen/your_service/proto"
+	"server/framework"
+	rag_svr "server/service/rag_svr/kitex_gen/rag_svr/ragservice"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
@@ -16,21 +16,20 @@ import (
 	"github.com/cloudwego/kitex/client"
 	"github.com/cloudwego/kitex/pkg/rpcinfo"
 	"github.com/cloudwego/kitex/pkg/transmeta"
-	etcd "github.com/kitex-contrib/registry-etcd"
 )
 
 func main() {
 	h := server.Default()
 
 	// 创建etcd服务发现组件
-	r, err := etcd.NewEtcdResolver([]string{"localhost:2379"})
+	r, err := framework.NewEtcdResolver()
 	if err != nil {
 		log.Fatalf("创建etcd解析器失败: %v", err)
 	}
 
 	// 初始化Kitex客户端并集成etcd服务发现
-	kitexClient := client.MustNewClient(
-		"your-service-name",
+	kitexClient, err := rag_svr.NewClient(
+		"rag_svr",
 		client.WithResolver(r),
 		client.WithRPCTimeout(3*time.Second),
 		client.WithMiddleware(func(next client.Invoker) client.Invoker {
@@ -41,26 +40,34 @@ func main() {
 			}
 		}),
 	)
+	if err != nil {
+		log.Fatalf("创建客户端失败: %v", err)
+	}
 
 	// 定义HTTP路由
-	h.GET("/api/users/:id", func(c context.Context, ctx *app.RequestContext) {
-		id := ctx.Param("id")
+	h.GET("/api/test", func(c context.Context, ctx *app.RequestContext) {
+		msg := ctx.Query("msg")
+		if msg == "" {
+			msg = "default message"
+		}
 
-		req := &proto.GetUserRequest{
-			Id: id,
+		req := &rag_svr.TestReq{
+			SeqId: fmt.Sprintf("%d", time.Now().UnixNano()),
+			Msg:   msg,
 		}
 
 		// 调用Kitex服务（自动从etcd获取服务实例）
-		resp, err := kitexClient.GetUser(c, req)
+		resp, err := kitexClient.Test(c, req)
 		if err != nil {
 			ctx.JSON(consts.StatusInternalServerError, utils.H{
-				"error": fmt.Sprintf("调用用户服务失败: %v", err),
+				"error": fmt.Sprintf("调用服务失败: %v", err),
 			})
 			return
 		}
 
 		ctx.JSON(consts.StatusOK, utils.H{
-			"user": resp.GetUser(),
+			"ret_code": resp.RetCode,
+			"ret_msg":  resp.RetMsg,
 		})
 	})
 
