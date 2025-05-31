@@ -1,26 +1,24 @@
 syntax = "proto3";
 
-package your_service;
+package rag_svr;
 
-// 定义用户消息结构
-message User {
-  string id = 1;
-  string name = 2;
-  int32 age = 3;
-}
+option go_package = "rag_svr";
+
 
 // 定义获取用户请求
-message GetUserRequest {
-  string id = 1;
+message TestReq {
+  string seq_id = 1;
+  string msg = 2;
 }
 
 // 定义获取用户响应
-message GetUserResponse {
-  User user = 1;
+message TestRsp {
+  uint32 ret_code = 1;
+  string ret_msg = 2;
 }
 
 // 定义用户服务
-service UserService {
+service RagService {
   // 获取用户信息的RPC方法
-  rpc GetUser (GetUserRequest) returns (GetUserResponse);
+  rpc Test (TestReq) returns (TestRsp);
 }

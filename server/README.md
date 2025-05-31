@@ -8,6 +8,19 @@ cd deploy
 docker-compose -f etcd-docker-compose.yml up -d
 ```
 
+#### 验证 etcd 启动情况
+```bash
+# 设置 etcd 客户端 API 版本
+export ETCDCTL_API=3
+
+# 设置 etcd 集群端点
+export ETCDCTL_ENDPOINTS="http://localhost:2379,http://localhost:2381,http://localhost:2383"
+
+# 测试读写
+etcdctl put test_key "test_value"
+etcdctl get test_key
+```
+
 ### 2. 启动 Kitex 服务
 ```bash
 go run kitex_service/main.go
