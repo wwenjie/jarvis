@@ -8,9 +8,9 @@ import (
 	"syscall"
 	"time"
 
-	"server/framework"
 	"server/framework/etcd"
-	"server/framework/logger"
+	"server/framework/kitex_framework"
+	logger "server/framework/kitex_framework/klogger"
 	rag_svr "server/service/rag_svr/kitex_gen/rag_svr/ragservice"
 
 	"github.com/cloudwego/kitex/server"
@@ -18,7 +18,7 @@ import (
 
 func main() {
 	// 创建etcd服务注册组件
-	err, etcdRegistry, _ := framework.InitService()
+	err, etcdRegistry, _ := kitex_framework.InitService()
 	if err != nil {
 		log.Fatalf("初始化服务失败: %v", err)
 	}

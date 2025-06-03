@@ -1,5 +1,4 @@
-// server/framework/logger.go
-package logger
+package klogger
 
 import (
 	"fmt"
@@ -9,22 +8,8 @@ import (
 
 	"server/framework/config"
 
-	"github.com/cloudwego/hertz/pkg/common/hlog"
+	"github.com/cloudwego/kitex/pkg/klog"
 	"gopkg.in/natefinch/lumberjack.v2"
-)
-
-var (
-	// 日志配置
-	GlobalConfig = struct {
-		Log struct {
-			Level      string
-			Filename   string
-			MaxSize    int
-			MaxBackups int
-			MaxAge     int
-			Compress   bool
-		}
-	}{}
 )
 
 // InitLogger 初始化日志配置
@@ -43,14 +28,13 @@ func InitLogger() {
 		Compress:   config.GlobalConfig.Log.Compress,
 	}
 
-	// 设置日志输出和级别
-	hlog.SetOutput(writer)
-	hlog.SetLevel(getLogLevel(config.GlobalConfig.Log.Level))
+	klog.SetOutput(writer)
+	klog.SetLevel(getLogLevel(config.GlobalConfig.Log.Level))
 }
 
 // LogRequest 记录请求日志
 func LogRequest(serviceName, method string, req interface{}) {
-	hlog.Infof("[%s] [%s] [%s] 收到请求: %+v",
+	klog.Infof("[%s] [%s] [%s] 收到请求: %+v",
 		time.Now().Format("2006-01-02 15:04:05.000"),
 		serviceName,
 		method,
@@ -60,7 +44,7 @@ func LogRequest(serviceName, method string, req interface{}) {
 
 // LogResponse 记录响应日志
 func LogResponse(serviceName, method string, resp interface{}) {
-	hlog.Infof("[%s] [%s] [%s] 返回响应: %+v",
+	klog.Infof("[%s] [%s] [%s] 返回响应: %+v",
 		time.Now().Format("2006-01-02 15:04:05.000"),
 		serviceName,
 		method,
@@ -69,7 +53,7 @@ func LogResponse(serviceName, method string, resp interface{}) {
 }
 
 func LogDebug(serviceName, method string, msg string) {
-	hlog.Debugf("[%s] [%s] [%s] %s",
+	klog.Debugf("[%s] [%s] [%s] %s",
 		time.Now().Format("2006-01-02 15:04:05.000"),
 		serviceName,
 		method,
@@ -78,7 +62,7 @@ func LogDebug(serviceName, method string, msg string) {
 }
 
 func LogInfo(serviceName, method string, msg string) {
-	hlog.Infof("[%s] [%s] [%s] %s",
+	klog.Infof("[%s] [%s] [%s] %s",
 		time.Now().Format("2006-01-02 15:04:05.000"),
 		serviceName,
 		method,
@@ -87,7 +71,7 @@ func LogInfo(serviceName, method string, msg string) {
 }
 
 func LogWarning(serviceName, method string, msg string) {
-	hlog.Warnf("[%s] [%s] [%s] %s",
+	klog.Warnf("[%s] [%s] [%s] %s",
 		time.Now().Format("2006-01-02 15:04:05.000"),
 		serviceName,
 		method,
@@ -96,7 +80,7 @@ func LogWarning(serviceName, method string, msg string) {
 }
 
 func LogError(serviceName, method string, err error) {
-	hlog.Errorf("[%s] [%s] [%s] 发生错误: %v",
+	klog.Errorf("[%s] [%s] [%s] 发生错误: %v",
 		time.Now().Format("2006-01-02 15:04:05.000"),
 		serviceName,
 		method,
@@ -105,7 +89,7 @@ func LogError(serviceName, method string, err error) {
 }
 
 func LogFatal(serviceName, method string, err error) {
-	hlog.Fatalf("[%s] [%s] [%s] 发生错误: %v",
+	klog.Fatalf("[%s] [%s] [%s] 发生错误: %v",
 		time.Now().Format("2006-01-02 15:04:05.000"),
 		serviceName,
 		method,
@@ -114,17 +98,17 @@ func LogFatal(serviceName, method string, err error) {
 }
 
 // getLogLevel 获取日志级别
-func getLogLevel(level string) hlog.Level {
+func getLogLevel(level string) klog.Level {
 	switch level {
 	case "debug":
-		return hlog.LevelDebug
+		return klog.LevelDebug
 	case "info":
-		return hlog.LevelInfo
+		return klog.LevelInfo
 	case "warn":
-		return hlog.LevelWarn
+		return klog.LevelWarn
 	case "error":
-		return hlog.LevelError
+		return klog.LevelError
 	default:
-		return hlog.LevelInfo
+		return klog.LevelInfo
 	}
 }

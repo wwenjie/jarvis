@@ -1,1 +1,9 @@
 2025/06/02 21:56:49.498566 logger.go:81: [Info] [2025-06-02 21:56:49.498] [rag_svr] [main] rag_svr start succ!
+2025/06/03 19:28:34.531280 klogger.go:65: [Info] [2025-06-03 19:28:34.531] [rag_svr] [main] rag_svr start succ!
+2025/06/03 19:28:34.532723 server.go:79: [Info] KITEX: server listen at addr=[::]:8888
+2025/06/03 19:28:35.541462 etcd_registry.go:299: [Info] start keepalive lease 5853971c9e3d2dd0 for etcd registry
+2025/06/03 23:40:16.322446 handler.go:15: [Info] 收到测试请求: seq_id=%!s(uint32=186172052), msg=
+2025/06/03 23:40:22.437837 handler.go:15: [Info] 收到测试请求: seq_id=%!s(uint32=2011641461), msg=
+2025/06/03 23:40:54.651382 etcd_registry.go:216: [Info] stop keep register service kitex/registry-etcd/rag_svr/10.1.12.17:8888
+2025/06/03 23:40:54.651401 server_handler.go:383: [Info] KITEX: gRPC GracefulShutdown starts
+2025/06/03 23:40:54.702323 server_handler.go:385: [Info] KITEX: gRPC GracefulShutdown ends

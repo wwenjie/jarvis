@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"server/api_gateway/biz/router/api_gateway"
-	"server/framework"
-	"server/framework/logger"
+	"server/framework/hertz_framework"
+	logger "server/framework/hertz_framework/hlogger"
 	ragservice "server/service/rag_svr/kitex_gen/rag_svr/ragservice"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -27,7 +27,7 @@ func main() {
 	)
 
 	// 创建etcd服务发现组件
-	err, _, etcdResolver := framework.InitService()
+	err, _, etcdResolver := hertz_framework.InitService()
 	if err != nil {
 		log.Fatalf("创建etcd解析器失败: %v", err)
 	}

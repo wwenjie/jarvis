@@ -1,4 +1,4 @@
-package framework
+package hertz_framework
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"server/framework/config"
 	"server/framework/etcd"
-	"server/framework/logger"
+	logger "server/framework/hertz_framework/hlogger"
 
 	"github.com/cloudwego/kitex/pkg/discovery"
 	"github.com/cloudwego/kitex/pkg/registry"
