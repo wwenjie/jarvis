@@ -7,36 +7,37 @@ import (
 	"time"
 
 	"server/framework"
-	rag_svr "server/service/rag_svr/kitex_gen/rag_svr/ragservice"
+	rag_svr "server/service/rag_svr/kitex_gen/rag_svr"
+	ragservice "server/service/rag_svr/kitex_gen/rag_svr/ragservice"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/kitex/client"
-	"github.com/cloudwego/kitex/pkg/rpcinfo"
-	"github.com/cloudwego/kitex/pkg/transmeta"
+	"github.com/cloudwego/kitex/pkg/endpoint"
 )
 
 func main() {
-	h := server.Default()
+	h := server.Default(
+		server.WithHostPorts(":8081"), // 监听所有网络接口
+	)
 
 	// 创建etcd服务发现组件
-	r, err := framework.NewEtcdResolver()
+	err, etcdRegistry, etcdResolver := framework.InitService()
 	if err != nil {
-		log.Fatalf("创建etcd解析器失败: %v", err)
+		log.Fatalf("初始化服务失败: %v", err)
 	}
 
 	// 初始化Kitex客户端并集成etcd服务发现
-	kitexClient, err := rag_svr.NewClient(
+	kitexClient, err := ragservice.NewClient(
 		"rag_svr",
-		client.WithResolver(r),
+		client.WithResolver(etcdResolver),
 		client.WithRPCTimeout(3*time.Second),
-		client.WithMiddleware(func(next client.Invoker) client.Invoker {
-			return func(ctx context.Context, method string, req, resp interface{}, opts ...rpcinfo.Option) error {
-				// 示例：添加请求头信息
-				ctx = transmeta.WithClientTransportHeader(ctx, "x-request-id", "123456")
-				return next(ctx, method, req, resp, opts...)
+		client.WithMiddleware(func(next endpoint.Endpoint) endpoint.Endpoint {
+			return func(ctx context.Context, req, resp interface{}) (err error) {
+				// 这里可以添加自定义的中间件逻辑
+				return next(ctx, req, resp)
 			}
 		}),
 	)

@@ -12,6 +12,7 @@ import (
 // Client is designed to provide IDL-compatible methods with call-option parameter for kitex framework.
 type Client interface {
 	Test(ctx context.Context, Req *rag_svr.TestReq, callOptions ...callopt.Option) (r *rag_svr.TestRsp, err error)
+	Test2(ctx context.Context, Req *rag_svr.Test2Req, callOptions ...callopt.Option) (r *rag_svr.Test2Rsp, err error)
 }
 
 // NewClient creates a client for the service defined in IDL.
@@ -46,4 +47,9 @@ type kRagServiceClient struct {
 func (p *kRagServiceClient) Test(ctx context.Context, Req *rag_svr.TestReq, callOptions ...callopt.Option) (r *rag_svr.TestRsp, err error) {
 	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
 	return p.kClient.Test(ctx, Req)
+}
+
+func (p *kRagServiceClient) Test2(ctx context.Context, Req *rag_svr.Test2Req, callOptions ...callopt.Option) (r *rag_svr.Test2Rsp, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.Test2(ctx, Req)
 }

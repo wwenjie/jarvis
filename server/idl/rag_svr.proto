@@ -7,18 +7,29 @@ option go_package = "rag_svr";
 
 // 定义获取用户请求
 message TestReq {
-  string seq_id = 1;
+  uint32 seq_id = 1;
   string msg = 2;
 }
 
 // 定义获取用户响应
 message TestRsp {
-  uint32 ret_code = 1;
-  string ret_msg = 2;
+  uint32 code = 1;
+  string msg = 2;
+}
+
+message Test2Req {
+  uint32 seq_id = 1;
+  string msg = 2;
+}
+
+message Test2Rsp {
+  uint32 code = 1;
+  string msg = 2;
 }
 
 // 定义用户服务
 service RagService {
   // 获取用户信息的RPC方法
   rpc Test (TestReq) returns (TestRsp);
+  rpc Test2 (Test2Req) returns (Test2Rsp);
 }

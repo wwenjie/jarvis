@@ -38,7 +38,7 @@ ReadFieldError:
 }
 
 func (x *TestReq) fastReadField1(buf []byte, _type int8) (offset int, err error) {
-	x.SeqId, offset, err = fastpb.ReadString(buf, _type)
+	x.SeqId, offset, err = fastpb.ReadUint32(buf, _type)
 	return offset, err
 }
 
@@ -73,12 +73,82 @@ ReadFieldError:
 }
 
 func (x *TestRsp) fastReadField1(buf []byte, _type int8) (offset int, err error) {
-	x.RetCode, offset, err = fastpb.ReadUint32(buf, _type)
+	x.Code, offset, err = fastpb.ReadUint32(buf, _type)
 	return offset, err
 }
 
 func (x *TestRsp) fastReadField2(buf []byte, _type int8) (offset int, err error) {
-	x.RetMsg, offset, err = fastpb.ReadString(buf, _type)
+	x.Msg, offset, err = fastpb.ReadString(buf, _type)
+	return offset, err
+}
+
+func (x *Test2Req) FastRead(buf []byte, _type int8, number int32) (offset int, err error) {
+	switch number {
+	case 1:
+		offset, err = x.fastReadField1(buf, _type)
+		if err != nil {
+			goto ReadFieldError
+		}
+	case 2:
+		offset, err = x.fastReadField2(buf, _type)
+		if err != nil {
+			goto ReadFieldError
+		}
+	default:
+		offset, err = fastpb.Skip(buf, _type, number)
+		if err != nil {
+			goto SkipFieldError
+		}
+	}
+	return offset, nil
+SkipFieldError:
+	return offset, fmt.Errorf("%T cannot parse invalid wire-format data, error: %s", x, err)
+ReadFieldError:
+	return offset, fmt.Errorf("%T read field %d '%s' error: %s", x, number, fieldIDToName_Test2Req[number], err)
+}
+
+func (x *Test2Req) fastReadField1(buf []byte, _type int8) (offset int, err error) {
+	x.SeqId, offset, err = fastpb.ReadUint32(buf, _type)
+	return offset, err
+}
+
+func (x *Test2Req) fastReadField2(buf []byte, _type int8) (offset int, err error) {
+	x.Msg, offset, err = fastpb.ReadString(buf, _type)
+	return offset, err
+}
+
+func (x *Test2Rsp) FastRead(buf []byte, _type int8, number int32) (offset int, err error) {
+	switch number {
+	case 1:
+		offset, err = x.fastReadField1(buf, _type)
+		if err != nil {
+			goto ReadFieldError
+		}
+	case 2:
+		offset, err = x.fastReadField2(buf, _type)
+		if err != nil {
+			goto ReadFieldError
+		}
+	default:
+		offset, err = fastpb.Skip(buf, _type, number)
+		if err != nil {
+			goto SkipFieldError
+		}
+	}
+	return offset, nil
+SkipFieldError:
+	return offset, fmt.Errorf("%T cannot parse invalid wire-format data, error: %s", x, err)
+ReadFieldError:
+	return offset, fmt.Errorf("%T read field %d '%s' error: %s", x, number, fieldIDToName_Test2Rsp[number], err)
+}
+
+func (x *Test2Rsp) fastReadField1(buf []byte, _type int8) (offset int, err error) {
+	x.Code, offset, err = fastpb.ReadUint32(buf, _type)
+	return offset, err
+}
+
+func (x *Test2Rsp) fastReadField2(buf []byte, _type int8) (offset int, err error) {
+	x.Msg, offset, err = fastpb.ReadString(buf, _type)
 	return offset, err
 }
 
@@ -92,10 +162,10 @@ func (x *TestReq) FastWrite(buf []byte) (offset int) {
 }
 
 func (x *TestReq) fastWriteField1(buf []byte) (offset int) {
-	if x.SeqId == "" {
+	if x.SeqId == 0 {
 		return offset
 	}
-	offset += fastpb.WriteString(buf[offset:], 1, x.GetSeqId())
+	offset += fastpb.WriteUint32(buf[offset:], 1, x.GetSeqId())
 	return offset
 }
 
@@ -117,18 +187,68 @@ func (x *TestRsp) FastWrite(buf []byte) (offset int) {
 }
 
 func (x *TestRsp) fastWriteField1(buf []byte) (offset int) {
-	if x.RetCode == 0 {
+	if x.Code == 0 {
 		return offset
 	}
-	offset += fastpb.WriteUint32(buf[offset:], 1, x.GetRetCode())
+	offset += fastpb.WriteUint32(buf[offset:], 1, x.GetCode())
 	return offset
 }
 
 func (x *TestRsp) fastWriteField2(buf []byte) (offset int) {
-	if x.RetMsg == "" {
+	if x.Msg == "" {
 		return offset
 	}
-	offset += fastpb.WriteString(buf[offset:], 2, x.GetRetMsg())
+	offset += fastpb.WriteString(buf[offset:], 2, x.GetMsg())
+	return offset
+}
+
+func (x *Test2Req) FastWrite(buf []byte) (offset int) {
+	if x == nil {
+		return offset
+	}
+	offset += x.fastWriteField1(buf[offset:])
+	offset += x.fastWriteField2(buf[offset:])
+	return offset
+}
+
+func (x *Test2Req) fastWriteField1(buf []byte) (offset int) {
+	if x.SeqId == 0 {
+		return offset
+	}
+	offset += fastpb.WriteUint32(buf[offset:], 1, x.GetSeqId())
+	return offset
+}
+
+func (x *Test2Req) fastWriteField2(buf []byte) (offset int) {
+	if x.Msg == "" {
+		return offset
+	}
+	offset += fastpb.WriteString(buf[offset:], 2, x.GetMsg())
+	return offset
+}
+
+func (x *Test2Rsp) FastWrite(buf []byte) (offset int) {
+	if x == nil {
+		return offset
+	}
+	offset += x.fastWriteField1(buf[offset:])
+	offset += x.fastWriteField2(buf[offset:])
+	return offset
+}
+
+func (x *Test2Rsp) fastWriteField1(buf []byte) (offset int) {
+	if x.Code == 0 {
+		return offset
+	}
+	offset += fastpb.WriteUint32(buf[offset:], 1, x.GetCode())
+	return offset
+}
+
+func (x *Test2Rsp) fastWriteField2(buf []byte) (offset int) {
+	if x.Msg == "" {
+		return offset
+	}
+	offset += fastpb.WriteString(buf[offset:], 2, x.GetMsg())
 	return offset
 }
 
@@ -142,10 +262,10 @@ func (x *TestReq) Size() (n int) {
 }
 
 func (x *TestReq) sizeField1() (n int) {
-	if x.SeqId == "" {
+	if x.SeqId == 0 {
 		return n
 	}
-	n += fastpb.SizeString(1, x.GetSeqId())
+	n += fastpb.SizeUint32(1, x.GetSeqId())
 	return n
 }
 
@@ -167,18 +287,68 @@ func (x *TestRsp) Size() (n int) {
 }
 
 func (x *TestRsp) sizeField1() (n int) {
-	if x.RetCode == 0 {
+	if x.Code == 0 {
 		return n
 	}
-	n += fastpb.SizeUint32(1, x.GetRetCode())
+	n += fastpb.SizeUint32(1, x.GetCode())
 	return n
 }
 
 func (x *TestRsp) sizeField2() (n int) {
-	if x.RetMsg == "" {
+	if x.Msg == "" {
 		return n
 	}
-	n += fastpb.SizeString(2, x.GetRetMsg())
+	n += fastpb.SizeString(2, x.GetMsg())
+	return n
+}
+
+func (x *Test2Req) Size() (n int) {
+	if x == nil {
+		return n
+	}
+	n += x.sizeField1()
+	n += x.sizeField2()
+	return n
+}
+
+func (x *Test2Req) sizeField1() (n int) {
+	if x.SeqId == 0 {
+		return n
+	}
+	n += fastpb.SizeUint32(1, x.GetSeqId())
+	return n
+}
+
+func (x *Test2Req) sizeField2() (n int) {
+	if x.Msg == "" {
+		return n
+	}
+	n += fastpb.SizeString(2, x.GetMsg())
+	return n
+}
+
+func (x *Test2Rsp) Size() (n int) {
+	if x == nil {
+		return n
+	}
+	n += x.sizeField1()
+	n += x.sizeField2()
+	return n
+}
+
+func (x *Test2Rsp) sizeField1() (n int) {
+	if x.Code == 0 {
+		return n
+	}
+	n += fastpb.SizeUint32(1, x.GetCode())
+	return n
+}
+
+func (x *Test2Rsp) sizeField2() (n int) {
+	if x.Msg == "" {
+		return n
+	}
+	n += fastpb.SizeString(2, x.GetMsg())
 	return n
 }
 
@@ -188,6 +358,16 @@ var fieldIDToName_TestReq = map[int32]string{
 }
 
 var fieldIDToName_TestRsp = map[int32]string{
-	1: "RetCode",
-	2: "RetMsg",
+	1: "Code",
+	2: "Msg",
+}
+
+var fieldIDToName_Test2Req = map[int32]string{
+	1: "SeqId",
+	2: "Msg",
+}
+
+var fieldIDToName_Test2Rsp = map[int32]string{
+	1: "Code",
+	2: "Msg",
 }
