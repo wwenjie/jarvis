@@ -1,0 +1,22 @@
+service:
+  name: "api_gateway"
+  port: 8081
+  version: "v0.0.1"
+  env: "dev" # 只支持dev, test, gray, prod
+  region: "cn" # 只支持cn, us, eu, as
+  weight: 100
+
+etcd:
+  endpoints:
+    - "106.55.197.49:2379"  # etcd1
+    - "106.55.197.49:2381"  # etcd2
+    - "106.55.197.49:2383"  # etcd3
+  timeout: 5  # 秒
+
+log:
+  level: info
+  filename: logs/api_gateway.log
+  max_size: 100
+  max_backups: 10
+  max_age: 30
+  compress: true

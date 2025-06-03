@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"server/framework"
+	"server/framework/etcd"
+	"server/framework/logger"
 	rag_svr "server/service/rag_svr/kitex_gen/rag_svr/ragservice"
 
 	"github.com/cloudwego/kitex/server"
@@ -16,22 +18,22 @@ import (
 
 func main() {
 	// 创建etcd服务注册组件
-	r, err := framework.NewEtcdRegistry()
+	err, etcdRegistry, _ := framework.InitService()
 	if err != nil {
-		log.Fatalf("创建etcd注册器失败: %v", err)
+		log.Fatalf("初始化服务失败: %v", err)
 	}
-
-	// 获取本机IP地址
-	ipAddr := framework.GetLocalIP()
 
 	// 创建并启动Kitex服务器
 	svr := rag_svr.NewServer(
 		new(RagServiceImpl),
-		server.WithServerBasicInfo(framework.GetRegistryInfo("rag_svr")),
-		server.WithServiceAddr(&net.TCPAddr{IP: net.ParseIP(ipAddr), Port: 8888}),
-		server.WithRegistry(r),                 // 注册到etcd
-		server.WithExitWaitTime(3*time.Second), // 优雅关闭等待时间
+		server.WithServerBasicInfo(etcd.GetRegistryInfo("rag_svr")),
+		server.WithServiceAddr(&net.TCPAddr{IP: net.ParseIP("0.0.0.0"), Port: 8888}), // 监听所有网络接口
+		server.WithRegistry(etcdRegistry),                                            // 注册到etcd
+		server.WithExitWaitTime(3*time.Second),                                       // 优雅关闭等待时间
 	)
+
+	// log.Printf("rag_svr start succ!")
+	logger.LogInfo("rag_svr", "main", "rag_svr start succ!")
 
 	// 启动服务器
 	go func() {

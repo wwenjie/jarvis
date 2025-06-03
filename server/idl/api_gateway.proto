@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package api_gateway;
+
+import "third_party/hertz/api.proto";
+
+option go_package = "api_gateway";
+
+message PingReq {
+}
+
+message PingRsp {
+    uint32 code = 1;
+    string msg = 2;
+}
+
+// 定义获取用户请求
+message TestReq {
+    string seq_id = 1[(api.body) = "seq_id"];
+    string msg = 2[(api.query) = "msg", (api.vd) = "$!=''"];
+    string msg2 = 3[(api.query) = "msg2"];
+    string raw = 4[(api.raw_body) = "raw"];
+}
+
+// 定义获取用户响应
+message TestRsp {
+    uint32 code = 1;
+    string msg = 2;
+}
+
+message Test2Req {
+    uint32 seq_id = 1[(api.body) = "seq_id", (api.vd) = "$>0"];
+    string msg = 2;
+}
+
+message Test2Rsp {
+    uint32 code = 1;
+    string msg = 2;
+}
+
+// 定义用户服务
+service ApiGatewayService {
+    rpc Ping (PingReq) returns (PingRsp) {
+        option (api.get) = "/ping";
+    };
+    rpc Test (TestReq) returns (TestRsp) {
+        option (api.get) = "/test";
+    };
+    rpc Test2 (Test2Req) returns (Test2Rsp) {
+        option (api.post) = "/test2";
+    };
+}

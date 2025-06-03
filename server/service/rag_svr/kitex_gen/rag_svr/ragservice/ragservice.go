@@ -22,6 +22,13 @@ var serviceMethods = map[string]kitex.MethodInfo{
 		false,
 		kitex.WithStreamingMode(kitex.StreamingUnary),
 	),
+	"Test2": kitex.NewMethodInfo(
+		test2Handler,
+		newTest2Args,
+		newTest2Result,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingUnary),
+	),
 }
 
 var (
@@ -241,6 +248,159 @@ func (p *TestResult) GetResult() interface{} {
 	return p.Success
 }
 
+func test2Handler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	switch s := arg.(type) {
+	case *streaming.Args:
+		st := s.Stream
+		req := new(rag_svr.Test2Req)
+		if err := st.RecvMsg(req); err != nil {
+			return err
+		}
+		resp, err := handler.(rag_svr.RagService).Test2(ctx, req)
+		if err != nil {
+			return err
+		}
+		return st.SendMsg(resp)
+	case *Test2Args:
+		success, err := handler.(rag_svr.RagService).Test2(ctx, s.Req)
+		if err != nil {
+			return err
+		}
+		realResult := result.(*Test2Result)
+		realResult.Success = success
+		return nil
+	default:
+		return errInvalidMessageType
+	}
+}
+func newTest2Args() interface{} {
+	return &Test2Args{}
+}
+
+func newTest2Result() interface{} {
+	return &Test2Result{}
+}
+
+type Test2Args struct {
+	Req *rag_svr.Test2Req
+}
+
+func (p *Test2Args) FastRead(buf []byte, _type int8, number int32) (n int, err error) {
+	if !p.IsSetReq() {
+		p.Req = new(rag_svr.Test2Req)
+	}
+	return p.Req.FastRead(buf, _type, number)
+}
+
+func (p *Test2Args) FastWrite(buf []byte) (n int) {
+	if !p.IsSetReq() {
+		return 0
+	}
+	return p.Req.FastWrite(buf)
+}
+
+func (p *Test2Args) Size() (n int) {
+	if !p.IsSetReq() {
+		return 0
+	}
+	return p.Req.Size()
+}
+
+func (p *Test2Args) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetReq() {
+		return out, nil
+	}
+	return proto.Marshal(p.Req)
+}
+
+func (p *Test2Args) Unmarshal(in []byte) error {
+	msg := new(rag_svr.Test2Req)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Req = msg
+	return nil
+}
+
+var Test2Args_Req_DEFAULT *rag_svr.Test2Req
+
+func (p *Test2Args) GetReq() *rag_svr.Test2Req {
+	if !p.IsSetReq() {
+		return Test2Args_Req_DEFAULT
+	}
+	return p.Req
+}
+
+func (p *Test2Args) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *Test2Args) GetFirstArgument() interface{} {
+	return p.Req
+}
+
+type Test2Result struct {
+	Success *rag_svr.Test2Rsp
+}
+
+var Test2Result_Success_DEFAULT *rag_svr.Test2Rsp
+
+func (p *Test2Result) FastRead(buf []byte, _type int8, number int32) (n int, err error) {
+	if !p.IsSetSuccess() {
+		p.Success = new(rag_svr.Test2Rsp)
+	}
+	return p.Success.FastRead(buf, _type, number)
+}
+
+func (p *Test2Result) FastWrite(buf []byte) (n int) {
+	if !p.IsSetSuccess() {
+		return 0
+	}
+	return p.Success.FastWrite(buf)
+}
+
+func (p *Test2Result) Size() (n int) {
+	if !p.IsSetSuccess() {
+		return 0
+	}
+	return p.Success.Size()
+}
+
+func (p *Test2Result) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetSuccess() {
+		return out, nil
+	}
+	return proto.Marshal(p.Success)
+}
+
+func (p *Test2Result) Unmarshal(in []byte) error {
+	msg := new(rag_svr.Test2Rsp)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Success = msg
+	return nil
+}
+
+func (p *Test2Result) GetSuccess() *rag_svr.Test2Rsp {
+	if !p.IsSetSuccess() {
+		return Test2Result_Success_DEFAULT
+	}
+	return p.Success
+}
+
+func (p *Test2Result) SetSuccess(x interface{}) {
+	p.Success = x.(*rag_svr.Test2Rsp)
+}
+
+func (p *Test2Result) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *Test2Result) GetResult() interface{} {
+	return p.Success
+}
+
 type kClient struct {
 	c client.Client
 }
@@ -256,6 +416,16 @@ func (p *kClient) Test(ctx context.Context, Req *rag_svr.TestReq) (r *rag_svr.Te
 	_args.Req = Req
 	var _result TestResult
 	if err = p.c.Call(ctx, "Test", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) Test2(ctx context.Context, Req *rag_svr.Test2Req) (r *rag_svr.Test2Rsp, err error) {
+	var _args Test2Args
+	_args.Req = Req
+	var _result Test2Result
+	if err = p.c.Call(ctx, "Test2", &_args, &_result); err != nil {
 		return
 	}
 	return _result.GetSuccess(), nil
