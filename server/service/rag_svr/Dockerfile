@@ -1,35 +1,39 @@
-# 构建阶段
+# 第一阶段：构建 Go 应用
 FROM golang:1.23.5 AS builder
 
 WORKDIR /app
 
+# 使用国内 Go 模块代理
+ENV GOPROXY=https://goproxy.cn,direct
+
 # 复制 go.mod 和 go.sum
-COPY go.mod ./
-COPY go.sum ./
+COPY server/service/rag_svr/go.mod ./
+COPY server/service/rag_svr/go.sum ./
+
+# 复制本地依赖模块
+COPY server/framework /framework
 
 # 下载依赖
 RUN go mod download
 
-# 复制源代码
-COPY . .
+# 复制全部源码（包含 build.sh、script、config、kitex_gen 等）
+COPY server/service/rag_svr/ ./
 
-# 构建应用
+# 编译（假设你有 build.sh 脚本）
 RUN ./build.sh
 
-# 运行阶段
+# 第二阶段：精简运行环境
 FROM ubuntu:22.04
 
 WORKDIR /app
 
-# 从构建阶段复制编译好的二进制文件
-COPY --from=builder /app/output/bin/rag_svr /app/rag_svr
-COPY --from=builder /app/output/script/bootstrap.sh /app/bootstrap.sh
+# 只复制编译好的二进制和启动脚本，不带源码
+COPY --from=builder /app/output/bin/rag_svr /app/bin/rag_svr
+COPY --from=builder /app/output/bootstrap.sh /app/bootstrap.sh
+COPY --from=builder /app/config/config.yaml /app/config/config.yaml
 
-# 设置执行权限
 RUN chmod +x /app/bootstrap.sh
 
-# 暴露端口
 EXPOSE 8888
 
-# 启动服务
 CMD ["/app/bootstrap.sh"] 

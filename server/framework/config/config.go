@@ -25,7 +25,7 @@ type Config struct {
 
 	Log struct {
 		Level      string `yaml:"level"`
-		Filename   string `yaml:"filename"`
+		LogPath    string `yaml:"log_path"`
 		MaxSize    int    `yaml:"max_size"`
 		MaxBackups int    `yaml:"max_backups"`
 		MaxAge     int    `yaml:"max_age"`

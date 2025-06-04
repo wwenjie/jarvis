@@ -1,0 +1,36 @@
+services:
+  api_gateway:
+    build:
+      context: ../..
+      dockerfile: server/api_gateway/Dockerfile
+    container_name: api_gateway
+    ports:
+      - "8081:8081"
+    volumes:
+      - /app/logs:/app/logs
+    environment:
+      - TZ=Asia/Shanghai
+      - ETCD_ENDPOINTS=106.55.197.49:2379,106.55.197.49:2381,106.55.197.49:2383
+    restart: always
+    networks:
+      - jarvis_net
+
+  rag_svr:
+    build:
+      context: ../..
+      dockerfile: server/service/rag_svr/Dockerfile
+    container_name: rag_svr
+    ports:
+      - "8888:8888"
+    volumes:
+      - /app/logs:/app/logs
+    environment:
+      - ETCD_ENDPOINTS=106.55.197.49:2379,106.55.197.49:2381,106.55.197.49:2383
+      - TZ=Asia/Shanghai
+    restart: unless-stopped
+    networks:
+      - jarvis_net
+
+networks:
+  jarvis_net:
+    driver: bridge 
