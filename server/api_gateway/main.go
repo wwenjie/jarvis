@@ -9,11 +9,11 @@ import (
 
 	"server/api_gateway/biz/router/api_gateway"
 	"server/framework/hertz_framework"
-	logger "server/framework/hertz_framework/hlogger"
 	ragservice "server/service/rag_svr/kitex_gen/rag_svr/ragservice"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
+	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/kitex/client"
 	"github.com/cloudwego/kitex/pkg/endpoint"
 	"github.com/cloudwego/kitex/pkg/loadbalance"
@@ -71,7 +71,7 @@ func main() {
 	api_gateway.Register(h)
 
 	// log.Printf("api_gateway start succ!")
-	logger.LogInfo("api_gateway", "main", "api_gateway start succ!")
+	hlog.Infof("api_gateway start succ!")
 
 	h.Spin()
 }

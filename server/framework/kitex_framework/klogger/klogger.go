@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"server/framework/config"
 
@@ -100,6 +99,7 @@ func (w *LevelWriter) Write(p []byte) (n int, err error) {
 
 // parseLogLevel 从日志内容中解析日志级别
 func parseLogLevel(log string) string {
+	log = strings.ToUpper(log)
 	if strings.Contains(log, "[DEBUG]") {
 		return "DEBUG"
 	}
@@ -113,71 +113,6 @@ func parseLogLevel(log string) string {
 		return "ERROR"
 	}
 	return "DEBUG"
-}
-
-// LogRequest 记录请求日志
-func LogRequest(serviceName, method string, req interface{}) {
-	klog.Infof("[%s] [%s] [%s] 收到请求: %+v",
-		time.Now().Format("2006-01-02 15:04:05.000"),
-		serviceName,
-		method,
-		req,
-	)
-}
-
-// LogResponse 记录响应日志
-func LogResponse(serviceName, method string, resp interface{}) {
-	klog.Infof("[%s] [%s] [%s] 返回响应: %+v",
-		time.Now().Format("2006-01-02 15:04:05.000"),
-		serviceName,
-		method,
-		resp,
-	)
-}
-
-func LogDebug(serviceName, method string, msg string) {
-	klog.Debugf("[%s] [%s] [%s] %s",
-		time.Now().Format("2006-01-02 15:04:05.000"),
-		serviceName,
-		method,
-		msg,
-	)
-}
-
-func LogInfo(serviceName, method string, msg string) {
-	klog.Infof("[%s] [%s] [%s] %s",
-		time.Now().Format("2006-01-02 15:04:05.000"),
-		serviceName,
-		method,
-		msg,
-	)
-}
-
-func LogWarning(serviceName, method string, msg string) {
-	klog.Warnf("[%s] [%s] [%s] %s",
-		time.Now().Format("2006-01-02 15:04:05.000"),
-		serviceName,
-		method,
-		msg,
-	)
-}
-
-func LogError(serviceName, method string, err error) {
-	klog.Errorf("[%s] [%s] [%s] 发生错误: %v",
-		time.Now().Format("2006-01-02 15:04:05.000"),
-		serviceName,
-		method,
-		err,
-	)
-}
-
-func LogFatal(serviceName, method string, err error) {
-	klog.Fatalf("[%s] [%s] [%s] 发生错误: %v",
-		time.Now().Format("2006-01-02 15:04:05.000"),
-		serviceName,
-		method,
-		err,
-	)
 }
 
 // getLogLevel 获取日志级别

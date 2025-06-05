@@ -14,7 +14,7 @@ etcd:
   timeout: 5  # 秒
 
 log:
-  level: info
+  level: debug
   log_path: /app/logs
   max_size: 100
   max_backups: 10

@@ -9,6 +9,7 @@ import (
 	logger "server/framework/kitex_framework/klogger"
 
 	"github.com/cloudwego/kitex/pkg/discovery"
+	"github.com/cloudwego/kitex/pkg/klog"
 	"github.com/cloudwego/kitex/pkg/registry"
 )
 
@@ -32,5 +33,6 @@ func InitService() (error, registry.Registry, discovery.Resolver) {
 	if err != nil {
 		return fmt.Errorf("初始化etcd失败: %v", err), nil, nil
 	}
+	klog.Infof("etcdRegistry: %v, etcdResolver: %v", etcdRegistry, etcdResolver)
 	return nil, etcdRegistry, etcdResolver
 }
