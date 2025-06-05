@@ -10,7 +10,7 @@ services:
       - /app/logs:/app/logs
     environment:
       - TZ=Asia/Shanghai
-      - ETCD_ENDPOINTS=106.55.197.49:2379,106.55.197.49:2381,106.55.197.49:2383
+      - ETCD_ENDPOINTS=10.1.20.17:2379,10.1.20.17:2381,10.1.20.17:2383
     restart: always
     networks:
       - jarvis_net
@@ -25,7 +25,7 @@ services:
     volumes:
       - /app/logs:/app/logs
     environment:
-      - ETCD_ENDPOINTS=106.55.197.49:2379,106.55.197.49:2381,106.55.197.49:2383
+      - ETCD_ENDPOINTS=10.1.20.17:2379,10.1.20.17:2381,10.1.20.17:2383
       - TZ=Asia/Shanghai
     restart: unless-stopped
     networks:
