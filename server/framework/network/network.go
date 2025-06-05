@@ -49,9 +49,9 @@ func GetLocalIP() string {
 			}
 
 			// 跳过私有IP
-			if ip.IsPrivate() {
-				continue
-			}
+			// if ip.IsPrivate() {
+			//     continue
+			// }
 
 			return ip.String()
 		}

@@ -12,8 +12,7 @@ services:
       - TZ=Asia/Shanghai
       - ETCD_ENDPOINTS=10.1.20.17:2379,10.1.20.17:2381,10.1.20.17:2383
     restart: always
-    networks:
-      - jarvis_net
+    network_mode: host
 
   rag_svr:
     build:
@@ -28,8 +27,7 @@ services:
       - ETCD_ENDPOINTS=10.1.20.17:2379,10.1.20.17:2381,10.1.20.17:2383
       - TZ=Asia/Shanghai
     restart: unless-stopped
-    networks:
-      - jarvis_net
+    network_mode: host
 
 networks:
   jarvis_net:
