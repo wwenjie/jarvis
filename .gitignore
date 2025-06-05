@@ -1,0 +1,6 @@
+output/
+*.log
+*.o
+*.so
+*.swp
+.vscode/
