@@ -16,6 +16,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"github.com/cloudwego/kitex/pkg/rpcinfo"
 )
 
 // Ping .
@@ -64,7 +65,13 @@ func Test(ctx context.Context, c *app.RequestContext) {
 		req.SeqId = uint32(time.Now().UnixNano())
 	}
 
-	// 调用 rag_svr 的 Test 方法
+	// 获取下游服务端地址
+	ri := rpcinfo.GetRPCInfo(ctx)
+	var ragSvAddr string
+	if ri != nil && ri.To() != nil {
+		ragSvAddr = ri.To().Address().String()
+	}
+
 	resp, err := ragSvrClient.Test(ctx, &req)
 	if err != nil {
 		c.JSON(consts.StatusInternalServerError, utils.H{
@@ -72,6 +79,8 @@ func Test(ctx context.Context, c *app.RequestContext) {
 		})
 		return
 	}
+
+	hlog.Infof("Test接口调用rag_svr下游地址: %s", ragSvAddr)
 
 	c.JSON(consts.StatusOK, utils.H{
 		"code": resp.Code,

@@ -17,6 +17,7 @@ import (
 	"github.com/cloudwego/kitex/client"
 	"github.com/cloudwego/kitex/pkg/endpoint"
 	"github.com/cloudwego/kitex/pkg/loadbalance"
+	"github.com/cloudwego/kitex/pkg/rpcinfo"
 )
 
 func main() {
@@ -41,8 +42,19 @@ func main() {
 
 		client.WithMiddleware(func(next endpoint.Endpoint) endpoint.Endpoint {
 			return func(ctx context.Context, req, resp interface{}) (err error) {
-				// 这里可以添加自定义的中间件逻辑
-				return next(ctx, req, resp)
+				err = next(ctx, req, resp) // 先发起RPC
+				rpcInfo := rpcinfo.GetRPCInfo(ctx)
+				if rpcInfo == nil {
+					hlog.Infof("本次请求没有下游服务端地址")
+					return
+				}
+				to := rpcInfo.To()
+				if to == nil || to.Address() == nil {
+					hlog.Infof("本次请求没有下游服务端地址")
+					return
+				}
+				hlog.Infof("本次请求实际下游服务端地址: %s", to.Address().String())
+				return
 			}
 		}),
 	)
@@ -70,7 +82,6 @@ func main() {
 	// 注册路由（移到中间件之后）
 	api_gateway.Register(h)
 
-	// log.Printf("api_gateway start succ!")
 	hlog.Infof("api_gateway start succ!")
 
 	h.Spin()
