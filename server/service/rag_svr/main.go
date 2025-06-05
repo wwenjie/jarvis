@@ -10,9 +10,9 @@ import (
 
 	"server/framework/etcd"
 	"server/framework/kitex_framework"
-	logger "server/framework/kitex_framework/klogger"
 	rag_svr "server/service/rag_svr/kitex_gen/rag_svr/ragservice"
 
+	"github.com/cloudwego/kitex/pkg/klog"
 	"github.com/cloudwego/kitex/server"
 )
 
@@ -33,7 +33,9 @@ func main() {
 	)
 
 	// log.Printf("rag_svr start succ!")
-	logger.LogInfo("rag_svr", "main", "rag_svr start succ!")
+	klog.Infof("rag_svr start succ!")
+
+	klog.Warnf("test wanring log!")
 
 	// 启动服务器
 	go func() {

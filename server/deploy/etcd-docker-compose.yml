@@ -4,14 +4,15 @@ services:
   etcd1:
     image: bitnami/etcd:3.5
     container_name: etcd1
+    network_mode: host
     environment:
       - ALLOW_NONE_AUTHENTICATION=yes  # 生产环境建议禁用，启用认证
       - ETCD_NAME=etcd1
-      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd1:2380
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://106.55.197.49:2380
       - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
       - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
-      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd1:2379
-      - ETCD_INITIAL_CLUSTER=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      - ETCD_ADVERTISE_CLIENT_URLS=http://106.55.197.49:2379
+      - ETCD_INITIAL_CLUSTER=etcd1=http://106.55.197.49:2380,etcd2=http://106.55.197.49:2382,etcd3=http://106.55.197.49:2384
       - ETCD_INITIAL_CLUSTER_STATE=new
     ports:
       - "2379:2379"  # 客户端端口
@@ -22,14 +23,15 @@ services:
   etcd2:
     image: bitnami/etcd:3.5
     container_name: etcd2
+    network_mode: host
     environment:
       - ALLOW_NONE_AUTHENTICATION=yes  # 生产环境建议禁用，启用认证
       - ETCD_NAME=etcd2
-      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd2:2380
-      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
-      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
-      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd2:2379
-      - ETCD_INITIAL_CLUSTER=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://106.55.197.49:2382
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2382
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2381
+      - ETCD_ADVERTISE_CLIENT_URLS=http://106.55.197.49:2381
+      - ETCD_INITIAL_CLUSTER=etcd1=http://106.55.197.49:2380,etcd2=http://106.55.197.49:2382,etcd3=http://106.55.197.49:2384
       - ETCD_INITIAL_CLUSTER_STATE=new
     ports:
       - "2381:2379"  # 避免端口冲突，客户端端口映射到宿主机 2381
@@ -40,14 +42,15 @@ services:
   etcd3:
     image: bitnami/etcd:3.5
     container_name: etcd3
+    network_mode: host
     environment:
       - ALLOW_NONE_AUTHENTICATION=yes  # 生产环境建议禁用，启用认证
       - ETCD_NAME=etcd3
-      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd3:2380
-      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
-      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
-      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd3:2379
-      - ETCD_INITIAL_CLUSTER=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://106.55.197.49:2384
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2384
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2383
+      - ETCD_ADVERTISE_CLIENT_URLS=http://106.55.197.49:2383
+      - ETCD_INITIAL_CLUSTER=etcd1=http://106.55.197.49:2380,etcd2=http://106.55.197.49:2382,etcd3=http://106.55.197.49:2384
       - ETCD_INITIAL_CLUSTER_STATE=new
     ports:
       - "2383:2379"  # 避免端口冲突，客户端端口映射到宿主机 2383
