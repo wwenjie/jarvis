@@ -9,11 +9,11 @@ import (
 
 	"server/api_gateway/biz/router/api_gateway"
 	"server/framework/hertz_framework"
+	"server/framework/logger"
 	ragservice "server/service/rag_svr/kitex_gen/rag_svr/ragservice"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
-	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/kitex/client"
 	"github.com/cloudwego/kitex/pkg/endpoint"
 	"github.com/cloudwego/kitex/pkg/loadbalance"
@@ -21,17 +21,17 @@ import (
 )
 
 func main() {
-	h := server.Default(
-		server.WithHostPorts("0.0.0.0:8081"),    // 允许所有网络接口访问
-		server.WithReadTimeout(time.Second*10),  // 设置读取超时
-		server.WithWriteTimeout(time.Second*10), // 设置写入超时
-	)
-
 	// 创建etcd服务发现组件
 	err, _, etcdResolver := hertz_framework.InitService()
 	if err != nil {
 		log.Fatalf("创建etcd解析器失败: %v", err)
 	}
+
+	h := server.Default(
+		server.WithHostPorts("0.0.0.0:8081"),    // 允许所有网络接口访问
+		server.WithReadTimeout(time.Second*10),  // 设置读取超时
+		server.WithWriteTimeout(time.Second*10), // 设置写入超时
+	)
 
 	// 初始化Kitex客户端并集成etcd服务发现
 	ragSvrTestClient, err := ragservice.NewClient(
@@ -45,15 +45,15 @@ func main() {
 				err = next(ctx, req, resp) // 先发起RPC
 				rpcInfo := rpcinfo.GetRPCInfo(ctx)
 				if rpcInfo == nil {
-					hlog.Infof("本次请求没有下游服务端地址")
+					logger.Infof("本次请求没有下游服务端地址")
 					return
 				}
 				to := rpcInfo.To()
 				if to == nil || to.Address() == nil {
-					hlog.Infof("本次请求没有下游服务端地址")
+					logger.Infof("本次请求没有下游服务端地址")
 					return
 				}
-				hlog.Infof("本次请求实际下游服务端地址: %s", to.Address().String())
+				logger.Infof("本次请求实际下游服务端地址: %s", to.Address().String())
 				return
 			}
 		}),
@@ -82,7 +82,7 @@ func main() {
 	// 注册路由（移到中间件之后）
 	api_gateway.Register(h)
 
-	hlog.Infof("api_gateway start succ!")
+	logger.Infof("api_gateway start succ!")
 
 	h.Spin()
 }
