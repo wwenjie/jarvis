@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -11,19 +10,32 @@ import (
 	"server/framework"
 	"server/framework/etcd"
 	"server/framework/logger"
+	"server/framework/milvus"
 	rag_svr "server/service/rag_svr/kitex_gen/rag_svr/ragservice"
 
 	"github.com/cloudwego/kitex/server"
 )
 
 func main() {
-	// 创建etcd服务注册组件
+	// 初始化服务
+	logger.Infof("开始初始化服务...")
 	err, etcdRegistry, _ := framework.InitService()
 	if err != nil {
-		log.Fatalf("初始化服务失败: %v", err)
+		logger.Errorf("初始化服务失败: %v", err)
+		os.Exit(1)
 	}
+	logger.Infof("服务初始化成功")
+
+	// 初始化 Milvus
+	logger.Infof("开始初始化 Milvus...")
+	if err := milvus.InitMilvus(); err != nil {
+		logger.Errorf("初始化 Milvus 失败: %v", err)
+		os.Exit(1)
+	}
+	logger.Infof("Milvus 初始化成功")
 
 	// 创建并启动Kitex服务器
+	logger.Infof("开始创建 Kitex 服务器...")
 	svr := rag_svr.NewServer(
 		new(RagServiceImpl),
 		server.WithServerBasicInfo(etcd.GetRegistryInfo("rag_svr")),
@@ -31,18 +43,17 @@ func main() {
 		server.WithRegistry(etcdRegistry),                                            // 注册到etcd
 		server.WithExitWaitTime(3*time.Second),                                       // 优雅关闭等待时间
 	)
+	logger.Infof("Kitex 服务器创建成功")
 
 	logger.Infof("rag_svr start succ!")
 	logger.Warnf("test warning log!")
 
 	// 启动服务器
-	go func() {
-		logger.Infof("正在启动 Kitex 服务器...")
-		if err := svr.Run(); err != nil {
-			logger.Errorf("服务器启动失败: %v", err)
-			os.Exit(1)
-		}
-	}()
+	logger.Infof("正在启动 Kitex 服务器...")
+	if err := svr.Run(); err != nil {
+		logger.Errorf("服务器启动失败: %v", err)
+		os.Exit(1)
+	}
 
 	// 优雅关闭
 	quit := make(chan os.Signal, 1)
