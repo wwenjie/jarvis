@@ -25,6 +25,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
+	github.com/milvus-io/milvus-sdk-go/v2 v2.4.2 // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.12 // indirect
