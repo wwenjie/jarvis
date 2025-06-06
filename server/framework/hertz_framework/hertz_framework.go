@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"server/framework/config"
 	"server/framework/etcd"
-	logger "server/framework/hertz_framework/hlogger"
+	"server/framework/logger"
 
 	"github.com/cloudwego/kitex/pkg/discovery"
 	"github.com/cloudwego/kitex/pkg/registry"
@@ -18,7 +18,12 @@ func InitService() (error, registry.Registry, discovery.Resolver) {
 		return fmt.Errorf("获取工作目录失败: %v", err), nil, nil
 	}
 
+	// 打印当前工作目录，用于调试
+	fmt.Printf("当前工作目录: %s\n", workDir)
+
 	configPath := filepath.Join(workDir, "config", "config.yaml")
+	fmt.Printf("配置文件路径: %s\n", configPath)
+
 	if err := config.LoadConfig(configPath); err != nil {
 		return fmt.Errorf("加载配置失败: %v", err), nil, nil
 	}

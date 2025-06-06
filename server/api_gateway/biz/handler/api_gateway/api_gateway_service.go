@@ -9,11 +9,11 @@ import (
 
 	// api_gateway "server/api_gateway/biz/model/api_gateway"
 	"server/api_gateway/biz/model/api_gateway"
+	"server/framework/logger"
 	"server/service/rag_svr/kitex_gen/rag_svr"
 	ragservice "server/service/rag_svr/kitex_gen/rag_svr/ragservice"
 
 	"github.com/cloudwego/hertz/pkg/app"
-	"github.com/cloudwego/hertz/pkg/common/hlog"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/cloudwego/kitex/pkg/rpcinfo"
@@ -30,7 +30,7 @@ func Ping(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	hlog.Infof("Ping接口收到请求: %+v", req)
+	logger.Infof("Ping接口收到请求: %+v", req)
 
 	resp := new(api_gateway.PingRsp)
 	resp.Code = 0
@@ -80,7 +80,7 @@ func Test(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	hlog.Infof("Test接口调用rag_svr下游地址: %s", ragSvAddr)
+	logger.Infof("Test接口调用rag_svr下游地址: %s", ragSvAddr)
 
 	c.JSON(consts.StatusOK, utils.H{
 		"code": resp.Code,
