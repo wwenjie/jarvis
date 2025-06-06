@@ -11,6 +11,7 @@ import (
 	"server/framework/config"
 
 	"github.com/cloudwego/hertz/pkg/common/hlog"
+	"github.com/cloudwego/kitex/pkg/klog"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -109,31 +110,38 @@ func InitLogger() {
 	// 创建 zap 的 core
 	debugCore := zapcore.NewCore(
 		zapcore.NewConsoleEncoder(encoderConfig),
-		zapcore.NewMultiWriteSyncer(zapcore.AddSync(os.Stdout), zapcore.AddSync(debugWriter)),
+		zapcore.AddSync(debugWriter),
 		zapcore.DebugLevel, // debug 级别，会记录所有日志
 	)
 
 	infoCore := zapcore.NewCore(
 		zapcore.NewConsoleEncoder(encoderConfig),
-		zapcore.NewMultiWriteSyncer(zapcore.AddSync(os.Stdout), zapcore.AddSync(infoWriter)),
+		zapcore.AddSync(infoWriter),
 		zapcore.InfoLevel, // info 级别，会记录 info 及以上级别的日志
 	)
 
 	warnCore := zapcore.NewCore(
 		zapcore.NewConsoleEncoder(encoderConfig),
-		zapcore.NewMultiWriteSyncer(zapcore.AddSync(os.Stdout), zapcore.AddSync(warningWriter)),
+		zapcore.AddSync(warningWriter),
 		zapcore.WarnLevel, // warn 级别，会记录 warn 及以上级别的日志
 	)
 
 	errorCore := zapcore.NewCore(
 		zapcore.NewConsoleEncoder(encoderConfig),
-		zapcore.NewMultiWriteSyncer(zapcore.AddSync(os.Stdout), zapcore.AddSync(errorWriter)),
+		zapcore.AddSync(errorWriter),
 		zapcore.ErrorLevel, // error 级别，只记录 error 级别的日志
+	)
+
+	// 创建标准输出的 core
+	stdoutCore := zapcore.NewCore(
+		zapcore.NewConsoleEncoder(encoderConfig),
+		zapcore.AddSync(os.Stdout),
+		level, // 使用配置的日志级别
 	)
 
 	// 创建 zap logger
 	ZapLogger = zap.New(
-		zapcore.NewTee(debugCore, infoCore, warnCore, errorCore),
+		zapcore.NewTee(debugCore, infoCore, warnCore, errorCore, stdoutCore),
 		zap.AddCaller(),
 		zap.AddCallerSkip(1), // 跳过一层调用，用于我们自己的业务代码
 	)
@@ -141,7 +149,12 @@ func InitLogger() {
 	// 设置 Hertz 的日志系统
 	hlog.SetLogger(&HertzLogger{skip: 2}) // 为 Hertz 日志设置额外的 skip 值
 
-	fmt.Printf("日志初始化完成\n")
+	// 设置 Kitex 的日志系统
+	kitexLogger := &KitexLogger{skip: 1} // 减少 skip 值，让 Kitex 的日志能显示正确的调用位置
+	klog.SetLogger(kitexLogger)
+	klog.SetLevel(klog.LevelDebug) // 设置 Kitex 的日志级别为 Debug
+
+	fmt.Printf("日志初始化完成，当前日志级别：%v\n", level)
 }
 
 // Debug 输出 debug 级别日志
@@ -387,4 +400,170 @@ func (l *HertzLogger) GetFlags() int {
 // GetHertzLogger 获取 Hertz 日志记录器实例
 func GetHertzLogger() *HertzLogger {
 	return &HertzLogger{skip: 2}
+}
+
+// KitexLogger 实现 Kitex 的日志接口
+type KitexLogger struct {
+	skip int // 额外的 skip 值
+}
+
+// getLogger 获取带有正确 skip 值的 logger
+func (l *KitexLogger) getLogger() *zap.Logger {
+	return ZapLogger.WithOptions(zap.AddCallerSkip(l.skip))
+}
+
+func (l *KitexLogger) Trace(v ...interface{}) {
+	l.getLogger().Debug(fmt.Sprint(v...))
+}
+
+func (l *KitexLogger) Debug(v ...interface{}) {
+	l.getLogger().Debug(fmt.Sprint(v...))
+}
+
+func (l *KitexLogger) Info(v ...interface{}) {
+	l.getLogger().Info(fmt.Sprint(v...))
+}
+
+func (l *KitexLogger) Warn(v ...interface{}) {
+	l.getLogger().Warn(fmt.Sprint(v...))
+}
+
+func (l *KitexLogger) Error(v ...interface{}) {
+	l.getLogger().Error(fmt.Sprint(v...))
+}
+
+func (l *KitexLogger) Fatal(v ...interface{}) {
+	l.getLogger().Fatal(fmt.Sprint(v...))
+}
+
+func (l *KitexLogger) Debugf(format string, v ...interface{}) {
+	l.getLogger().Sugar().Debugf(format, v...)
+}
+
+func (l *KitexLogger) Infof(format string, v ...interface{}) {
+	l.getLogger().Sugar().Infof(format, v...)
+}
+
+func (l *KitexLogger) Warnf(format string, v ...interface{}) {
+	l.getLogger().Sugar().Warnf(format, v...)
+}
+
+func (l *KitexLogger) Errorf(format string, v ...interface{}) {
+	l.getLogger().Sugar().Errorf(format, v...)
+}
+
+func (l *KitexLogger) Fatalf(format string, v ...interface{}) {
+	l.getLogger().Sugar().Fatalf(format, v...)
+}
+
+// 实现带上下文的日志方法
+func (l *KitexLogger) CtxDebugf(ctx context.Context, format string, v ...interface{}) {
+	l.getLogger().Sugar().Debugf(format, v...)
+}
+
+func (l *KitexLogger) CtxInfof(ctx context.Context, format string, v ...interface{}) {
+	l.getLogger().Sugar().Infof(format, v...)
+}
+
+func (l *KitexLogger) CtxWarnf(ctx context.Context, format string, v ...interface{}) {
+	l.getLogger().Sugar().Warnf(format, v...)
+}
+
+func (l *KitexLogger) CtxErrorf(ctx context.Context, format string, v ...interface{}) {
+	l.getLogger().Sugar().Errorf(format, v...)
+}
+
+func (l *KitexLogger) CtxFatalf(ctx context.Context, format string, v ...interface{}) {
+	l.getLogger().Sugar().Fatalf(format, v...)
+}
+
+func (l *KitexLogger) CtxNoticef(ctx context.Context, format string, v ...interface{}) {
+	l.getLogger().Sugar().Infof(format, v...)
+}
+
+func (l *KitexLogger) CtxTracef(ctx context.Context, format string, v ...interface{}) {
+	l.getLogger().Sugar().Debugf(format, v...)
+}
+
+func (l *KitexLogger) Notice(v ...interface{}) {
+	l.getLogger().Info(fmt.Sprint(v...))
+}
+
+func (l *KitexLogger) Noticef(format string, v ...interface{}) {
+	l.getLogger().Sugar().Infof(format, v...)
+}
+
+func (l *KitexLogger) Tracef(format string, v ...interface{}) {
+	l.getLogger().Sugar().Debugf(format, v...)
+}
+
+// 修改 GetLevel 方法，返回最低级别以允许所有日志通过
+func (l *KitexLogger) GetLevel() klog.Level {
+	return klog.LevelTrace // 返回最低级别，允许所有日志通过
+}
+
+// GetKitexLogger 获取 Kitex 日志记录器实例
+func GetKitexLogger() *KitexLogger {
+	return &KitexLogger{skip: 1} // 减少 skip 值，让 Kitex 的日志能显示正确的调用位置
+}
+
+// 以下为 klog.FullLogger 接口的空实现方法
+func (l *KitexLogger) SetLevel(level klog.Level) {
+	// 不需要实现，zap 日志级别已在 InitLogger 设置
+}
+
+func (l *KitexLogger) SetOutput(w io.Writer) {
+	// 不需要实现，zap 已管理输出
+}
+
+func (l *KitexLogger) SetOutputPath(path string) {
+	// 不需要实现，zap 已管理输出路径
+}
+
+func (l *KitexLogger) SetFormatter(formatter interface{}) {
+	// 不需要实现，zap 已管理格式化
+}
+
+func (l *KitexLogger) SetReportCaller(reportCaller bool) {
+	// 不需要实现，zap 已管理调用者信息
+}
+
+func (l *KitexLogger) SetPrefix(prefix string) {
+	// 不需要实现，zap 已管理前缀
+}
+
+func (l *KitexLogger) SetFlags(flag int) {
+	// 不需要实现，zap 已管理标志
+}
+
+func (l *KitexLogger) SetDefaultLogger(logger klog.FullLogger) {
+	// 不需要实现，zap 已管理默认 logger
+}
+
+func (l *KitexLogger) GetDefaultLogger() klog.FullLogger {
+	return l
+}
+
+func (l *KitexLogger) GetLogger() klog.FullLogger {
+	return l
+}
+
+func (l *KitexLogger) GetOutput() io.Writer {
+	return os.Stdout // 返回标准输出，让 zap 处理实际的输出
+}
+
+func (l *KitexLogger) GetFormatter() interface{} {
+	return nil // 返回 nil，让 zap 处理实际的格式化
+}
+
+func (l *KitexLogger) GetReportCaller() bool {
+	return true // 返回 true，让 zap 处理实际的调用者报告
+}
+
+func (l *KitexLogger) GetPrefix() string {
+	return "" // 返回空字符串，让 zap 处理实际的前缀
+}
+
+func (l *KitexLogger) GetFlags() int {
+	return 0 // 返回 0，让 zap 处理实际的标志
 }

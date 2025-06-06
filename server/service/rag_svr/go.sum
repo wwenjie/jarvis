@@ -1,6 +1,7 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
-github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
+github.com/BurntSushi/toml v1.5.0 h1:W5quZX/G/csjUnuI8SUYlsHs9M38FC7znL0lIO+DvMg=
+github.com/BurntSushi/toml v1.5.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/bytedance/gopkg v0.1.1/go.mod h1:576VvJ+eJgyCzdjS+c4+77QF3p7ubbtiKARP3TxducM=
@@ -29,6 +30,8 @@ github.com/cloudwego/frugal v0.2.5 h1:zRICkWpBCQ6TY4QmRf+uINzcHbv7ogCHOM8h7ltPRz
 github.com/cloudwego/frugal v0.2.5/go.mod h1:nC1U47gswLRiaxv6dybrhZvsDGCfQP9RGiiWC73CnoI=
 github.com/cloudwego/gopkg v0.1.4 h1:EoQiCG4sTonTPHxOGE0VlQs+sQR+Hsi2uN0qqwu8O50=
 github.com/cloudwego/gopkg v0.1.4/go.mod h1:FQuXsRWRsSqJLsMVd5SYzp8/Z1y5gXKnVvRrWUOsCMI=
+github.com/cloudwego/hertz v0.10.0 h1:V0vmBaLdQPlgL6w2TA6PZL1g6SGgQznFx6vqxWdCcKw=
+github.com/cloudwego/hertz v0.10.0/go.mod h1:lRBohmcDkGx5TLK6QKFGdzJ6n3IXqGueHsOiXcYgXA4=
 github.com/cloudwego/iasm v0.2.0 h1:1KNIy1I1H9hNNFEEH3DVnI4UujN+1zjpuk6gwHLTssg=
 github.com/cloudwego/iasm v0.2.0/go.mod h1:8rXZaNYT2n95jn+zTI1sDr+IgcD2GVs0nlbbQPiEFhY=
 github.com/cloudwego/kitex v0.13.1 h1:oPJS/hy9gvo0rlfQmJAKJj8F4PMLG74IYzpaPlCRgg8=

@@ -1,4 +1,4 @@
-package hertz_framework
+package framework
 
 import (
 	"fmt"
