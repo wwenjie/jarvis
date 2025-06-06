@@ -8,17 +8,17 @@ import (
 	"syscall"
 	"time"
 
+	"server/framework"
 	"server/framework/etcd"
-	"server/framework/kitex_framework"
+	"server/framework/logger"
 	rag_svr "server/service/rag_svr/kitex_gen/rag_svr/ragservice"
 
-	"github.com/cloudwego/kitex/pkg/klog"
 	"github.com/cloudwego/kitex/server"
 )
 
 func main() {
 	// 创建etcd服务注册组件
-	err, etcdRegistry, _ := kitex_framework.InitService()
+	err, etcdRegistry, _ := framework.InitService()
 	if err != nil {
 		log.Fatalf("初始化服务失败: %v", err)
 	}
@@ -32,15 +32,15 @@ func main() {
 		server.WithExitWaitTime(3*time.Second),                                       // 优雅关闭等待时间
 	)
 
-	// log.Printf("rag_svr start succ!")
-	klog.Infof("rag_svr start succ!")
-
-	klog.Warnf("test wanring log!")
+	logger.Infof("rag_svr start succ!")
+	logger.Warnf("test warning log!")
 
 	// 启动服务器
 	go func() {
+		logger.Infof("正在启动 Kitex 服务器...")
 		if err := svr.Run(); err != nil {
-			log.Fatalf("服务器启动失败: %v", err)
+			logger.Errorf("服务器启动失败: %v", err)
+			os.Exit(1)
 		}
 	}()
 
@@ -49,8 +49,11 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
+	logger.Infof("正在关闭服务器...")
 	// 停止服务器
 	if err := svr.Stop(); err != nil {
-		log.Fatalf("服务器关闭失败: %v", err)
+		logger.Errorf("服务器关闭失败: %v", err)
+		os.Exit(1)
 	}
+	logger.Infof("服务器已关闭")
 }
