@@ -13,6 +13,10 @@ etcd:
     - "10.1.20.17:2383"  # etcd3
   timeout: 5  # 秒
 
+milvus:
+  host: "10.1.20.17"
+  port: 19530
+
 log:
   level: debug
   log_path: /app/logs
