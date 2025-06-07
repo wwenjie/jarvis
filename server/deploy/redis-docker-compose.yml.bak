@@ -1,0 +1,55 @@
+# redis-docker-compose.yml
+services:
+  redis-node:
+    image: redis:8.0.2
+    container_name: redis-node
+    command: redis-server --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000 --appendonly yes --cluster-announce-port 6379 --cluster-announce-bus-port 16379
+    ports:
+      - "6379:6379"
+      - "16379:16379"
+    volumes:
+      - redis_data:/data
+    # network_mode: host
+    networks:
+      - redis-cluster-network
+    restart: unless-stopped
+
+  redis-node-2:
+    image: redis:8.0.2
+    container_name: redis-node-2
+    command: redis-server --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000 --appendonly yes --cluster-announce-port 6380 --cluster-announce-bus-port 16380
+    ports:
+      - "6380:6379"
+      - "16380:16379"
+    volumes:
+      - redis_data_2:/data
+    # network_mode: host
+    networks:
+      - redis-cluster-network
+    restart: unless-stopped
+
+  redis-node-3:
+    image: redis:8.0.2
+    container_name: redis-node-3
+    command: redis-server --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000 --appendonly yes --cluster-announce-port 6381 --cluster-announce-bus-port 16381
+    ports:
+      - "6381:6379"
+      - "16381:16379"
+    volumes:
+      - redis_data_3:/data
+    # network_mode: host
+    networks:
+      - redis-cluster-network
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+    driver: local
+  redis_data_2:
+    driver: local
+  redis_data_3:
+    driver: local
+
+networks:
+  redis-cluster-network:
+    driver: bridge
