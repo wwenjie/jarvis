@@ -1,0 +1,20 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    network_mode: host
+    environment:
+      - MYSQL_ROOT_PASSWORD=root123  # root用户密码
+      - MYSQL_DATABASE=jarvis_db  # 默认数据库名
+      - MYSQL_USER=jarvis  # 应用用户名
+      - MYSQL_PASSWORD=jarvis123  # 应用用户密码
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql.cnf:/etc/mysql/conf.d/mysql.cnf
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+
+volumes:
+  mysql_data:
