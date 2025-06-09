@@ -1,0 +1,57 @@
+services:
+  # 配置服务器
+  mongod_configsvr:
+    image: mongo:8.0
+    container_name: mongod_configsvr
+    network_mode: host
+    command: mongod --configsvr --port 27018 --replSet config --dbpath /data/db --bind_ip_all --wiredTigerCacheSizeGB 1 --logpath /data/db/mongod_configsvr.log
+    volumes:
+      - mongod_configsvr_data:/data/db
+    restart: always
+
+  # 分片服务器
+  mongod_shard1:
+    image: mongo:8.0
+    container_name: mongod_shard1
+    network_mode: host
+    command: mongod --shardsvr --port 27019 --replSet shard1 --dbpath /data/db --bind_ip_all --wiredTigerCacheSizeGB 1 --logpath /data/db/mongod.log
+    volumes:
+      - mongod_shard1_data:/data/db
+    restart: always
+
+  mongod_shard2:
+    image: mongo:8.0
+    container_name: mongod_shard2
+    network_mode: host
+    command: mongod --shardsvr --port 27020 --replSet shard2 --dbpath /data/db --bind_ip_all --wiredTigerCacheSizeGB 1 --logpath /data/db/mongod.log
+    volumes:
+      - mongod_shard2_data:/data/db
+    restart: always
+
+  mongod_shard3:
+    image: mongo:8.0
+    container_name: mongod_shard3
+    network_mode: host
+    command: mongod --shardsvr --port 27021 --replSet shard3 --dbpath /data/db --bind_ip_all --wiredTigerCacheSizeGB 1 --logpath /data/db/mongod.log
+    volumes:
+      - mongod_shard3_data:/data/db
+    restart: always
+
+  # mongos路由器
+  mongos:
+    image: mongo:8.0
+    container_name: mongos
+    network_mode: host
+    command: mongos --configdb config/10.1.20.17:27018 --port 27017 --bind_ip_all --logpath /data/db/mongos.log
+    volumes:
+      - mongos_data:/data/db
+    depends_on:
+      - mongod_configsvr
+    restart: always
+
+volumes:
+  mongod_configsvr_data:
+  mongod_shard1_data:
+  mongod_shard2_data:
+  mongod_shard3_data:
+  mongos_data:
