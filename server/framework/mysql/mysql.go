@@ -1,0 +1,268 @@
+// mysql.go
+package mysql
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+	"time"
+
+	"server/framework/config"
+	"server/framework/logger"
+
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
+)
+
+var (
+	db *gorm.DB
+)
+
+// InitMySQL 初始化MySQL连接
+func InitMySQL() error {
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+		config.GlobalConfig.MySQL.Username,
+		config.GlobalConfig.MySQL.Password,
+		config.GlobalConfig.MySQL.Host,
+		config.GlobalConfig.MySQL.Port,
+		config.GlobalConfig.MySQL.Database,
+	)
+
+	var err error
+	db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Info),
+	})
+	if err != nil {
+		return fmt.Errorf("连接MySQL失败: %v", err)
+	}
+
+	// 设置连接池
+	sqlDB, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("获取数据库实例失败: %v", err)
+	}
+
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetMaxOpenConns(100)
+	sqlDB.SetConnMaxLifetime(time.Hour)
+
+	// 自动迁移表结构
+	if err := autoMigrate(); err != nil {
+		return fmt.Errorf("自动迁移表结构失败: %v", err)
+	}
+
+	logger.Infof("MySQL连接成功: %s:%d", config.GlobalConfig.MySQL.Host, config.GlobalConfig.MySQL.Port)
+	return nil
+}
+
+// GetDB 获取数据库实例
+func GetDB() *gorm.DB {
+	return db
+}
+
+// autoMigrate 自动迁移表结构
+func autoMigrate() error {
+	// 创建表
+	if err := db.AutoMigrate(
+		&User{},
+		&Session{},
+		&ChatRecord{},
+		&Document{},
+		&IDGeneratorRecord{},
+		&ChatMemory{},
+		&Reminder{},
+	); err != nil {
+		return err
+	}
+
+	// 创建索引
+	indexes := []struct {
+		table   string
+		columns []string
+	}{
+		{"chat_session", []string{"user_id", "status"}},
+		{"chat_session", []string{"last_active_time"}},
+		{"chat_record", []string{"session_id", "created_at"}},
+		{"chat_record", []string{"user_id", "created_at"}},
+		{"document", []string{"user_id", "created_at"}},
+		{"chat_memory", []string{"user_id", "memory_type"}},
+		{"chat_memory", []string{"expire_time"}},
+		{"chat_memory", []string{"access_count"}},
+	}
+
+	for _, idx := range indexes {
+		indexName := fmt.Sprintf("idx_%s_%s", idx.table, strings.Join(idx.columns, "_"))
+		if err := db.Exec(fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON %s (%s)",
+			indexName, idx.table, strings.Join(idx.columns, ", "))).Error; err != nil {
+			return fmt.Errorf("创建索引 %s 失败: %v", indexName, err)
+		}
+	}
+
+	return nil
+}
+
+// User 用户表
+type User struct {
+	ID        uint64 `gorm:"primaryKey;table:user"`
+	Username  string `gorm:"size:50;not null;unique"`
+	Email     string `gorm:"size:100;not null;unique"`
+	Password  string `gorm:"size:100;not null"`
+	Status    string `gorm:"size:20;not null;default:'active'"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// Session 会话表
+type Session struct {
+	ID             uint64    `gorm:"primaryKey;table:chat_session"`
+	UserID         uint64    `gorm:"not null"`
+	Status         string    `gorm:"size:20;not null;default:'active'"`
+	Title          string    `gorm:"size:200"`
+	Summary        string    `gorm:"type:text"`
+	UserState      string    `gorm:"type:json"` // 用户状态，JSON格式，包含 last_intent, intent_confidence, last_sentiment 等字段
+	SystemState    string    `gorm:"type:json"` // 系统状态，JSON格式
+	Metadata       string    `gorm:"type:json"` // 元数据，JSON格式
+	LastActiveTime time.Time `gorm:"not null;default:CURRENT_TIMESTAMP"`
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+// ChatRecord 对话记录表
+type ChatRecord struct {
+	ID            uint64 `gorm:"primaryKey;table:chat_record"`
+	SessionID     uint64 `gorm:"not null"`
+	UserID        uint64 `gorm:"not null"`
+	Message       string `gorm:"type:text;not null"`
+	Response      string `gorm:"type:text"`
+	MessageType   string `gorm:"size:20;not null;default:'text'"`
+	Status        string `gorm:"size:20;not null;default:'pending'"`
+	Context       string `gorm:"type:json"`
+	FunctionCalls string `gorm:"type:json"`
+	Metadata      string `gorm:"type:json"`
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+// Document 文档表
+type Document struct {
+	ID        uint64 `gorm:"primaryKey;table:document"`
+	UserID    uint64 `gorm:"not null"`
+	Title     string `gorm:"size:200;not null"`
+	Content   string `gorm:"type:text;not null"`
+	Status    string `gorm:"size:20;not null;default:'active'"`
+	Metadata  string `gorm:"type:json"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// IDGeneratorRecord ID生成器表记录
+type IDGeneratorRecord struct {
+	IDName    string `gorm:"column:id_name;type:varchar(50);primaryKey"`
+	Sequence  uint64 `gorm:"column:sequence;not null;default:0"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// ChatMemory 对话记忆表
+type ChatMemory struct {
+	ID          uint64  `gorm:"primaryKey;table:chat_memory"`
+	SessionID   uint64  `gorm:"not null"`
+	UserID      uint64  `gorm:"not null"`
+	Content     string  `gorm:"type:text;not null"`
+	MemoryType  string  `gorm:"size:20;not null"`
+	Importance  float32 `gorm:"not null;default:1.0"`
+	ExpireTime  time.Time
+	AccessCount int    `gorm:"not null;default:0"`
+	Metadata    string `gorm:"type:json"`
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+// Reminder 提醒记录
+type Reminder struct {
+	ID         uint64    `gorm:"primaryKey;autoIncrement"`
+	Content    string    `gorm:"type:text;not null"`        // 提醒内容
+	RemindTime time.Time `gorm:"not null"`                  // 提醒时间
+	Status     string    `gorm:"type:varchar(20);not null"` // 状态：pending/triggered/completed
+	CreateTime time.Time `gorm:"not null"`                  // 创建时间
+	UpdateTime time.Time `gorm:"not null"`                  // 更新时间
+}
+
+// GetUserState 获取用户状态
+func (s *Session) GetUserState() (map[string]string, error) {
+	if s.UserState == "" {
+		return make(map[string]string), nil
+	}
+	var state map[string]string
+	if err := json.Unmarshal([]byte(s.UserState), &state); err != nil {
+		return nil, fmt.Errorf("解析用户状态失败: %v", err)
+	}
+	return state, nil
+}
+
+// SetUserState 设置用户状态
+func (s *Session) SetUserState(state map[string]string) error {
+	if state == nil {
+		s.UserState = "{}"
+		return nil
+	}
+	data, err := json.Marshal(state)
+	if err != nil {
+		return fmt.Errorf("序列化用户状态失败: %v", err)
+	}
+	s.UserState = string(data)
+	return nil
+}
+
+// GetSystemState 获取系统状态
+func (s *Session) GetSystemState() (map[string]string, error) {
+	if s.SystemState == "" {
+		return make(map[string]string), nil
+	}
+	var state map[string]string
+	if err := json.Unmarshal([]byte(s.SystemState), &state); err != nil {
+		return nil, fmt.Errorf("解析系统状态失败: %v", err)
+	}
+	return state, nil
+}
+
+// SetSystemState 设置系统状态
+func (s *Session) SetSystemState(state map[string]string) error {
+	if state == nil {
+		s.SystemState = "{}"
+		return nil
+	}
+	data, err := json.Marshal(state)
+	if err != nil {
+		return fmt.Errorf("序列化系统状态失败: %v", err)
+	}
+	s.SystemState = string(data)
+	return nil
+}
+
+// GetMetadata 获取元数据
+func (s *Session) GetMetadata() (map[string]interface{}, error) {
+	if s.Metadata == "" {
+		return make(map[string]interface{}), nil
+	}
+	var metadata map[string]interface{}
+	if err := json.Unmarshal([]byte(s.Metadata), &metadata); err != nil {
+		return nil, fmt.Errorf("解析元数据失败: %v", err)
+	}
+	return metadata, nil
+}
+
+// SetMetadata 设置元数据
+func (s *Session) SetMetadata(metadata map[string]interface{}) error {
+	if metadata == nil {
+		s.Metadata = "{}"
+		return nil
+	}
+	data, err := json.Marshal(metadata)
+	if err != nil {
+		return fmt.Errorf("序列化元数据失败: %v", err)
+	}
+	s.Metadata = string(data)
+	return nil
+}

@@ -4,7 +4,9 @@ package api_gateway
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"time"
 
 	// api_gateway "server/api_gateway/biz/model/api_gateway"
@@ -122,4 +124,383 @@ func Test2(ctx context.Context, c *app.RequestContext) {
 		"code": resp.Code,
 		"msg":  resp.Msg,
 	})
+}
+
+// CreateSession .
+// @router /session/create [POST]
+func CreateSession(ctx context.Context, c *app.RequestContext) {
+	var err error
+	var req api_gateway.CreateSessionReq
+	err = c.BindAndValidate(&req)
+	if err != nil {
+		c.String(consts.StatusBadRequest, err.Error())
+		return
+	}
+
+	// 从上下文中获取客户端
+	client, exists := c.Get("rag_svr_client")
+	if !exists {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": "客户端未初始化",
+		})
+		return
+	}
+
+	ragSvrClient := client.(ragservice.Client)
+
+	// 调用 rag_svr 的 CreateSession 方法
+	resp, err := ragSvrClient.CreateSession(ctx, &rag_svr.CreateSessionReq{
+		UserId: req.UserId,
+	})
+	if err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": fmt.Sprintf("调用服务失败: %v", err),
+		})
+		return
+	}
+
+	c.JSON(consts.StatusOK, utils.H{
+		"code":        resp.Code,
+		"msg":         resp.Msg,
+		"session_id":  resp.SessionInfo.SessionId,
+		"create_time": resp.SessionInfo.CreateTime,
+	})
+}
+
+// EndSession .
+// @router /session/end [POST]
+func EndSession(ctx context.Context, c *app.RequestContext) {
+	var err error
+	var req api_gateway.EndSessionReq
+	err = c.BindAndValidate(&req)
+	if err != nil {
+		c.String(consts.StatusBadRequest, err.Error())
+		return
+	}
+
+	// 从上下文中获取客户端
+	client, exists := c.Get("rag_svr_client")
+	if !exists {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": "客户端未初始化",
+		})
+		return
+	}
+
+	ragSvrClient := client.(ragservice.Client)
+
+	// 调用 rag_svr 的 EndSession 方法
+	resp, err := ragSvrClient.EndSession(ctx, &rag_svr.EndSessionReq{
+		SessionId: req.SessionId,
+	})
+	if err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": fmt.Sprintf("调用服务失败: %v", err),
+		})
+		return
+	}
+
+	c.JSON(consts.StatusOK, utils.H{
+		"code": resp.Code,
+		"msg":  resp.Msg,
+	})
+}
+
+// Chat .
+// @router /chat [POST]
+func Chat(ctx context.Context, c *app.RequestContext) {
+	var err error
+	var req api_gateway.ChatReq
+	err = c.BindAndValidate(&req)
+	if err != nil {
+		c.String(consts.StatusBadRequest, err.Error())
+		return
+	}
+
+	// 从上下文中获取客户端
+	client, exists := c.Get("rag_svr_client")
+	if !exists {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": "客户端未初始化",
+		})
+		return
+	}
+
+	ragSvrClient := client.(ragservice.Client)
+
+	// 调用 rag_svr 的 SendMessage 方法
+	resp, err := ragSvrClient.SendMessage(ctx, &rag_svr.SendMessageReq{
+		SessionId:   req.SessionId,
+		UserId:      req.UserId,
+		Message:     req.Message,
+		MessageType: req.MessageType,
+	})
+	if err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": fmt.Sprintf("调用服务失败: %v", err),
+		})
+		return
+	}
+
+	// 构建响应
+	chatRecords := make([]map[string]interface{}, 0)
+	for _, record := range resp.SessionInfo.ChatRecords {
+		chatRecords = append(chatRecords, map[string]interface{}{
+			"chat_id":      record.ChatId,
+			"message":      record.Message,
+			"response":     record.Response,
+			"create_time":  record.CreateTime,
+			"message_type": record.MessageType,
+		})
+	}
+
+	c.JSON(consts.StatusOK, utils.H{
+		"code":         resp.Code,
+		"msg":          resp.Msg,
+		"response":     resp.ChatRecord.Response,
+		"chat_records": chatRecords,
+		"user_state":   resp.SessionInfo.UserState,
+		"system_state": resp.SessionInfo.SystemState,
+	})
+}
+
+// AddKnowledge .
+// @router /knowledge/add [POST]
+func AddKnowledge(ctx context.Context, c *app.RequestContext) {
+	var err error
+	var req api_gateway.AddKnowledgeReq
+	err = c.BindAndValidate(&req)
+	if err != nil {
+		c.String(consts.StatusBadRequest, err.Error())
+		return
+	}
+
+	// 从上下文中获取客户端
+	client, exists := c.Get("rag_svr_client")
+	if !exists {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": "客户端未初始化",
+		})
+		return
+	}
+
+	ragSvrClient := client.(ragservice.Client)
+
+	// 调用 rag_svr 的 AddDocument 方法
+	resp, err := ragSvrClient.AddDocument(ctx, &rag_svr.AddDocumentReq{
+		UserId:   req.UserId,
+		Title:    req.Title,
+		Content:  req.Content,
+		Metadata: req.Metadata,
+	})
+	if err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": fmt.Sprintf("调用服务失败: %v", err),
+		})
+		return
+	}
+
+	c.JSON(consts.StatusOK, utils.H{
+		"code":   resp.Code,
+		"msg":    resp.Msg,
+		"doc_id": resp.DocId,
+	})
+}
+
+// SearchKnowledge .
+// @router /knowledge/search [GET]
+func SearchKnowledge(ctx context.Context, c *app.RequestContext) {
+	var err error
+	var req api_gateway.SearchKnowledgeReq
+	err = c.BindAndValidate(&req)
+	if err != nil {
+		c.String(consts.StatusBadRequest, err.Error())
+		return
+	}
+
+	// 从上下文中获取客户端
+	client, exists := c.Get("rag_svr_client")
+	if !exists {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": "客户端未初始化",
+		})
+		return
+	}
+
+	ragSvrClient := client.(ragservice.Client)
+
+	// 调用 rag_svr 的 SearchDocument 方法
+	resp, err := ragSvrClient.SearchDocument(ctx, &rag_svr.SearchDocumentReq{
+		UserId: req.UserId,
+		Query:  req.Query,
+		TopK:   req.TopK,
+	})
+	if err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": fmt.Sprintf("调用服务失败: %v", err),
+		})
+		return
+	}
+
+	// 构建响应
+	results := make([]map[string]interface{}, 0)
+	for i, doc := range resp.Documents {
+		results = append(results, map[string]interface{}{
+			"doc_id":      doc.DocId,
+			"title":       doc.Title,
+			"content":     doc.Content,
+			"score":       resp.Scores[i],
+			"create_time": doc.CreateTime,
+		})
+	}
+
+	c.JSON(consts.StatusOK, utils.H{
+		"code":    resp.Code,
+		"msg":     resp.Msg,
+		"results": results,
+	})
+}
+
+// CreateUser .
+// @router /user/create [POST]
+func CreateUser(ctx context.Context, c *app.RequestContext) {
+	var err error
+	var req api_gateway.CreateUserReq
+	err = c.BindAndValidate(&req)
+	if err != nil {
+		c.String(consts.StatusBadRequest, err.Error())
+		return
+	}
+
+	// 从上下文中获取客户端
+	client, exists := c.Get("rag_svr_client")
+	if !exists {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": "客户端未初始化",
+		})
+		return
+	}
+
+	ragSvrClient := client.(ragservice.Client)
+
+	// 调用 rag_svr 的 CreateUser 方法
+	resp, err := ragSvrClient.CreateUser(ctx, &rag_svr.CreateUserReq{
+		Username: req.Username,
+		Email:    req.Email,
+		Password: req.Password,
+	})
+	if err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": fmt.Sprintf("调用服务失败: %v", err),
+		})
+		return
+	}
+
+	c.JSON(consts.StatusOK, utils.H{
+		"code":        resp.Code,
+		"msg":         resp.Msg,
+		"user_id":     resp.UserInfo.UserId,
+		"username":    resp.UserInfo.UserName,
+		"email":       resp.UserInfo.Email,
+		"create_time": resp.UserInfo.CreateTime,
+	})
+}
+
+// ChatStream .
+// @router /chat/stream [POST]
+func ChatStream(ctx context.Context, c *app.RequestContext) {
+	var err error
+	var req api_gateway.ChatReq
+	err = c.BindAndValidate(&req)
+	if err != nil {
+		c.String(consts.StatusBadRequest, err.Error())
+		return
+	}
+
+	// 从上下文中获取客户端
+	client, exists := c.Get("rag_svr_client")
+	if !exists {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": "客户端未初始化",
+		})
+		return
+	}
+
+	ragSvrClient := client.(ragservice.Client)
+
+	// 设置 SSE 响应头
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("Transfer-Encoding", "chunked")
+
+	// 创建流式请求
+	stream, err := ragSvrClient.SendMessageStream(ctx, &rag_svr.SendMessageReq{
+		SessionId:   req.SessionId,
+		UserId:      req.UserId,
+		Message:     req.Message,
+		MessageType: req.MessageType,
+		Context:     req.Context,
+	})
+	if err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": fmt.Sprintf("创建流式请求失败: %v", err),
+		})
+		return
+	}
+
+	// 处理流式响应
+	for {
+		resp, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				// 流结束
+				break
+			}
+			c.JSON(consts.StatusInternalServerError, utils.H{
+				"error": fmt.Sprintf("接收流式响应失败: %v", err),
+			})
+			return
+		}
+
+		// 构建 SSE 消息
+		data := map[string]interface{}{
+			"code":       resp.Code,
+			"msg":        resp.Msg,
+			"response":   resp.ChatRecord.Response,
+			"session_id": resp.ChatRecord.SessionId,
+			"done":       resp.ChatRecord.Status == "completed",
+		}
+
+		// 如果是最终响应，添加额外信息
+		if resp.ChatRecord.Status == "completed" {
+			// 构建聊天记录
+			chatRecords := make([]map[string]interface{}, 0)
+			for _, record := range resp.SessionInfo.ChatRecords {
+				chatRecords = append(chatRecords, map[string]interface{}{
+					"chat_id":      record.ChatId,
+					"message":      record.Message,
+					"response":     record.Response,
+					"create_time":  record.CreateTime,
+					"message_type": record.MessageType,
+				})
+			}
+
+			data["chat_records"] = chatRecords
+			data["user_state"] = resp.SessionInfo.UserState
+			data["system_state"] = resp.SessionInfo.SystemState
+		}
+
+		// 发送 SSE 消息
+		jsonData, err := json.Marshal(data)
+		if err != nil {
+			c.JSON(consts.StatusInternalServerError, utils.H{
+				"error": fmt.Sprintf("序列化响应失败: %v", err),
+			})
+			return
+		}
+
+		c.WriteString(fmt.Sprintf("data: %s\n\n", string(jsonData)))
+		c.Flush()
+	}
 }

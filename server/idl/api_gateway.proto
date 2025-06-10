@@ -6,6 +6,13 @@ import "third_party/hertz/api.proto";
 
 option go_package = "api_gateway";
 
+// 基础响应
+message BaseRsp {
+    uint32 code = 1;
+    string msg = 2;
+}
+
+// 测试接口
 message PingReq {
 }
 
@@ -14,7 +21,6 @@ message PingRsp {
     string msg = 2;
 }
 
-// 定义获取用户请求
 message TestReq {
     string seq_id = 1[(api.body) = "seq_id"];
     string msg = 2[(api.query) = "msg", (api.vd) = "$!=''"];
@@ -22,7 +28,6 @@ message TestReq {
     string raw = 4[(api.raw_body) = "raw"];
 }
 
-// 定义获取用户响应
 message TestRsp {
     uint32 code = 1;
     string msg = 2;
@@ -38,15 +43,140 @@ message Test2Rsp {
     string msg = 2;
 }
 
-// 定义用户服务
+// 会话管理
+message CreateSessionReq {
+    uint64 user_id = 1[(api.body) = "user_id", (api.vd) = "$>0"];
+}
+
+message CreateSessionRsp {
+    uint32 code = 1;
+    string msg = 2;
+    uint64 session_id = 3;
+    string create_time = 4;
+}
+
+message EndSessionReq {
+    uint64 session_id = 1[(api.body) = "session_id", (api.vd) = "$>0"];
+}
+
+message EndSessionRsp {
+    uint32 code = 1;
+    string msg = 2;
+}
+
+// 对话管理
+message ChatReq {
+    uint64 session_id = 1[(api.body) = "session_id", (api.vd) = "$>0"];
+    uint64 user_id = 2[(api.body) = "user_id", (api.vd) = "$>0"];
+    string message = 3[(api.body) = "message", (api.vd) = "$!=''"];
+    string message_type = 4[(api.body) = "message_type"];  // text, image, etc.
+    string context = 5[(api.body) = "context"];  // 添加文档上下文
+}
+
+message ChatRsp {
+    uint32 code = 1;
+    string msg = 2;
+    string response = 3;
+    repeated ChatRecord chat_records = 4;  // 最近的对话记录
+    map<string, string> user_state = 5;    // 用户状态
+    map<string, string> system_state = 6;  // 系统状态
+}
+
+message ChatRecord {
+    uint64 chat_id = 1;
+    string message = 2;
+    string response = 3;
+    string create_time = 4;
+    string message_type = 5;
+}
+
+// 知识库管理
+message AddKnowledgeReq {
+    uint64 user_id = 1[(api.body) = "user_id", (api.vd) = "$>0"];
+    string title = 2[(api.body) = "title", (api.vd) = "$!=''"];
+    string content = 3[(api.body) = "content", (api.vd) = "$!=''"];
+    string metadata = 4[(api.body) = "metadata"];
+}
+
+message AddKnowledgeRsp {
+    uint32 code = 1;
+    string msg = 2;
+    uint64 doc_id = 3;
+}
+
+message SearchKnowledgeReq {
+    uint64 user_id = 1[(api.query) = "user_id", (api.vd) = "$>0"];
+    string query = 2[(api.query) = "query", (api.vd) = "$!=''"];
+    int32 top_k = 3[(api.query) = "top_k", (api.vd) = "$>0"];
+}
+
+message SearchKnowledgeRsp {
+    uint32 code = 1;
+    string msg = 2;
+    repeated KnowledgeResult results = 3;
+}
+
+message KnowledgeResult {
+    uint64 doc_id = 1;
+    string title = 2;
+    string content = 3;
+    float score = 4;
+}
+
+// 用户管理
+message CreateUserReq {
+    string username = 1[(api.body) = "username", (api.vd) = "$!=''"];
+    string email = 2[(api.body) = "email", (api.vd) = "$!=''"];
+    string password = 3[(api.body) = "password", (api.vd) = "$!=''"];
+}
+
+message CreateUserRsp {
+    uint32 code = 1;
+    string msg = 2;
+    uint64 user_id = 3;
+    string username = 4;
+    string email = 5;
+}
+
+// 定义服务
 service ApiGatewayService {
-    rpc Ping (PingReq) returns (PingRsp) {
+    // 测试接口
+    rpc Ping(PingReq) returns (PingRsp) {
         option (api.get) = "/ping";
-    };
-    rpc Test (TestReq) returns (TestRsp) {
+    }
+    rpc Test(TestReq) returns (TestRsp) {
         option (api.get) = "/test";
-    };
-    rpc Test2 (Test2Req) returns (Test2Rsp) {
+    }
+    rpc Test2(Test2Req) returns (Test2Rsp) {
         option (api.post) = "/test2";
-    };
+    }
+    
+    // 会话管理
+    rpc CreateSession(CreateSessionReq) returns (CreateSessionRsp) {
+        option (api.post) = "/session/create";
+    }
+    rpc EndSession(EndSessionReq) returns (EndSessionRsp) {
+        option (api.post) = "/session/end";
+    }
+    
+    // 对话管理
+    rpc Chat(ChatReq) returns (ChatRsp) {
+        option (api.post) = "/chat";
+    }
+    rpc ChatStream(ChatReq) returns (stream ChatRsp) {
+        option (api.post) = "/chat/stream";
+    }
+    
+    // 知识库管理
+    rpc AddKnowledge(AddKnowledgeReq) returns (AddKnowledgeRsp) {
+        option (api.post) = "/knowledge/add";
+    }
+    rpc SearchKnowledge(SearchKnowledgeReq) returns (SearchKnowledgeRsp) {
+        option (api.get) = "/knowledge/search";
+    }
+    
+    // 用户管理
+    rpc CreateUser(CreateUserReq) returns (CreateUserRsp) {
+        option (api.post) = "/user/create";
+    }
 }

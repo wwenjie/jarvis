@@ -17,7 +17,24 @@ import (
 func Register(r *server.Hertz) {
 
 	root := r.Group("/", rootMw()...)
+	root.POST("/chat", append(_chat0Mw(), api_gateway.Chat)...)
+	_chat := root.Group("/chat", _chatMw()...)
+	_chat.POST("/stream", append(_chatstreamMw(), api_gateway.ChatStream)...)
 	root.GET("/ping", append(_pingMw(), api_gateway.Ping)...)
 	root.GET("/test", append(_testMw(), api_gateway.Test)...)
 	root.POST("/test2", append(_test2Mw(), api_gateway.Test2)...)
+	{
+		_knowledge := root.Group("/knowledge", _knowledgeMw()...)
+		_knowledge.POST("/add", append(_addknowledgeMw(), api_gateway.AddKnowledge)...)
+		_knowledge.GET("/search", append(_searchknowledgeMw(), api_gateway.SearchKnowledge)...)
+	}
+	{
+		_session := root.Group("/session", _sessionMw()...)
+		_session.POST("/create", append(_createsessionMw(), api_gateway.CreateSession)...)
+		_session.POST("/end", append(_endsessionMw(), api_gateway.EndSession)...)
+	}
+	{
+		_user := root.Group("/user", _userMw()...)
+		_user.POST("/create", append(_createuserMw(), api_gateway.CreateUser)...)
+	}
 }

@@ -1,0 +1,14 @@
+这是一个聊天机器人项目，类似电影钢铁侠里的jarvis ai。
+
+这个ai需要有记忆能力，比如我跟ai说帮我记下明天14点有个会议。
+然后开启新的聊天session后我问ai明天几点有会议，还能告诉我是14点。
+
+打算由ai决定把哪些对话内容的embedding存向量数据库。
+
+然后对话内容中每条问答，或者每次对话session存mysql或者mongodb。
+
+现在有api_gateway服务和rag_svr服务，
+api_gateway服务是hertz服务，打算用来提供http接口给ai做function calling。
+rag_svr服务是kitex服务，打算用来处理api_gateway转发来的请求，处理数据库存取。
+
+api_gateway.proto和rag_svr.proto是之前你给我建议的协议，可以继续迭代修改。
