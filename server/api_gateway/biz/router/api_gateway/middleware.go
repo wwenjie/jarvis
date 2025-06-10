@@ -23,3 +23,58 @@ func _test2Mw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _chatMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _knowledgeMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _addknowledgeMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _searchknowledgeMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _sessionMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _createsessionMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _endsessionMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _userMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _createuserMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _chat0Mw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _chatstreamMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

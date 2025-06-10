@@ -4,6 +4,11 @@ package rag_svr;
 
 option go_package = "rag_svr";
 
+// 基础响应
+message BaseRsp {
+    uint32 code = 1;
+    string msg = 2;
+}
 
 // 定义获取用户请求
 message TestReq {
@@ -27,9 +32,185 @@ message Test2Rsp {
   string msg = 2;
 }
 
+// 用户管理
+message UserInfo {
+    uint64 user_id = 1;
+    string user_name = 2;
+    string email = 3;
+    string create_time = 4;
+    string update_time = 5;
+}
+
+message CreateUserReq {
+    uint32 seq_id = 1;
+    string username = 2;
+    string email = 3;
+    string password = 4;
+}
+
+message CreateUserRsp {
+    uint32 code = 1;
+    string msg = 2;
+    UserInfo user_info = 3;
+}
+
+// 会话管理（MySQL）
+message SessionInfo {
+    uint64 session_id = 1;
+    uint64 user_id = 2;
+    string title = 3;  // 会话标题
+    string summary = 4;  // 会话摘要
+    string status = 5;  // 会话状态
+    string create_time = 6;
+    string update_time = 7;
+    map<string, string> user_state = 8;  // 用户状态
+    map<string, string> system_state = 9;  // 系统状态
+    repeated ChatRecord chat_records = 10;   // 对话记录
+    map<string, string> metadata = 11;       // 会话元数据
+}
+
+// 对话记录
+message ChatRecord {
+    uint64 chat_id = 1;
+    uint64 session_id = 2;
+    uint64 user_id = 3;
+    string message = 4;
+    string response = 5;
+    string create_time = 6;
+    string message_type = 7;  // text, image, etc.
+    string status = 8;        // pending, completed, failed
+}
+
+// 创建会话请求
+message CreateSessionReq {
+    uint32 seq_id = 1;
+    uint64 user_id = 2;
+}
+
+message CreateSessionRsp {
+    uint32 code = 1;
+    string msg = 2;
+    SessionInfo session_info = 3;
+}
+
+// 发送消息请求
+message SendMessageReq {
+    uint32 seq_id = 1;
+    uint64 session_id = 2;
+    uint64 user_id = 3;
+    string message = 4;
+    string message_type = 5;
+    string context = 6;  // 添加文档上下文
+}
+
+message SendMessageRsp {
+    uint32 code = 1;
+    string msg = 2;
+    ChatRecord chat_record = 3;
+    SessionInfo session_info = 4;  // 更新后的会话信息
+}
+
+// 结束会话请求
+message EndSessionReq {
+    uint32 seq_id = 1;
+    uint64 session_id = 2;
+}
+
+message EndSessionRsp {
+    uint32 code = 1;
+    string msg = 2;
+}
+
+// 知识文档
+message Document {
+    uint64 doc_id = 1;
+    uint64 user_id = 2;
+    string title = 3;
+    string content = 4;
+    string metadata = 5;
+    string create_time = 6;
+    string update_time = 7;
+}
+
+message AddDocumentReq {
+    uint32 seq_id = 1;
+    uint64 user_id = 2;
+    string title = 3;
+    string content = 4;
+    string metadata = 5;
+}
+
+message AddDocumentRsp {
+    uint32 code = 1;
+    string msg = 2;
+    uint64 doc_id = 3;
+}
+
+message SearchDocumentReq {
+    uint32 seq_id = 1;
+    uint64 user_id = 2;
+    string query = 3;
+    int32 top_k = 4;
+}
+
+message SearchDocumentRsp {
+    uint32 code = 1;
+    string msg = 2;
+    repeated Document documents = 3;
+    repeated float scores = 4;
+}
+
+// 会话管理
+message GetSessionListReq {
+    uint64 user_id = 1;
+    string status = 2;  // 可选，会话状态过滤
+    string start_time = 3;  // 可选，开始时间
+    string end_time = 4;  // 可选，结束时间
+    int32 page = 5;  // 页码，从1开始
+    int32 page_size = 6;  // 每页大小
+}
+
+message GetSessionListRsp {
+    uint32 code = 1;
+    string msg = 2;
+    int64 total = 3;  // 总数
+    int32 page = 4;  // 当前页码
+    int32 page_size = 5;  // 每页大小
+    repeated SessionInfo session_list = 6;  // 会话列表
+}
+
+message CleanInactiveSessionsReq {
+    int32 inactive_days = 1;  // 不活跃天数
+}
+
+message CleanInactiveSessionsRsp {
+    uint32 code = 1;
+    string msg = 2;
+    int64 cleaned_count = 3;  // 清理的会话数量
+}
+
 // 定义用户服务
 service RagService {
   // 获取用户信息的RPC方法
   rpc Test (TestReq) returns (TestRsp);
   rpc Test2 (Test2Req) returns (Test2Rsp);
+
+  // 用户管理
+  rpc CreateUser (CreateUserReq) returns (CreateUserRsp);
+
+  // 会话管理
+  rpc CreateSession(CreateSessionReq) returns (CreateSessionRsp);
+  rpc EndSession(EndSessionReq) returns (EndSessionRsp);
+
+  // 对话管理
+  rpc SendMessage(SendMessageReq) returns (SendMessageRsp);
+  rpc SendMessageStream(SendMessageReq) returns (stream SendMessageRsp);
+
+  // 知识文档
+  rpc AddDocument (AddDocumentReq) returns (AddDocumentRsp);
+  rpc SearchDocument(SearchDocumentReq) returns (SearchDocumentRsp);
+
+  // 会话管理
+  rpc GetSessionList(GetSessionListReq) returns (GetSessionListRsp);
+  rpc CleanInactiveSessions(CleanInactiveSessionsReq) returns (CleanInactiveSessionsRsp);
 }

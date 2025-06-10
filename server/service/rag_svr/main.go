@@ -5,13 +5,17 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"server/framework"
+	"server/framework/config"
 	"server/framework/etcd"
 	"server/framework/logger"
 	"server/framework/milvus"
-	rag_svr "server/service/rag_svr/kitex_gen/rag_svr/ragservice"
+	"server/framework/mongodb"
+	"server/framework/mysql"
+	"server/framework/redis"
+	"server/service/rag_svr/ai"
+	"server/service/rag_svr/kitex_gen/rag_svr/ragservice"
 
 	"github.com/cloudwego/kitex/server"
 )
@@ -19,12 +23,35 @@ import (
 func main() {
 	// 初始化服务
 	logger.Infof("开始初始化服务...")
-	err, etcdRegistry, _ := framework.InitService()
+	err, _, _ := framework.InitService()
 	if err != nil {
 		logger.Errorf("初始化服务失败: %v", err)
 		os.Exit(1)
 	}
 	logger.Infof("服务初始化成功")
+
+	// 初始化 MySQL
+	if err := mysql.InitMySQL(); err != nil {
+		logger.Errorf("初始化 MySQL 失败: %v", err)
+		os.Exit(1)
+	}
+	logger.Infof("MySQL 初始化成功")
+
+	// 初始化 Redis
+	logger.Infof("开始初始化 Redis...")
+	if err := redis.InitRedis(); err != nil {
+		logger.Errorf("初始化 Redis 失败: %v", err)
+		os.Exit(1)
+	}
+	logger.Infof("Redis 初始化成功")
+
+	// 初始化 MongoDB
+	logger.Infof("开始初始化 MongoDB...")
+	if err := mongodb.InitMongoDB(); err != nil {
+		logger.Errorf("初始化 MongoDB 失败: %v", err)
+		os.Exit(1)
+	}
+	logger.Infof("MongoDB 初始化成功")
 
 	// 初始化 Milvus
 	logger.Infof("开始初始化 Milvus...")
@@ -34,37 +61,59 @@ func main() {
 	}
 	logger.Infof("Milvus 初始化成功")
 
-	// 创建并启动Kitex服务器
-	logger.Infof("开始创建 Kitex 服务器...")
-	svr := rag_svr.NewServer(
-		new(RagServiceImpl),
-		server.WithServerBasicInfo(etcd.GetRegistryInfo("rag_svr")),
-		server.WithServiceAddr(&net.TCPAddr{IP: net.ParseIP("0.0.0.0"), Port: 8888}), // 监听所有网络接口
-		server.WithRegistry(etcdRegistry),                                            // 注册到etcd
-		server.WithExitWaitTime(3*time.Second),                                       // 优雅关闭等待时间
-	)
-	logger.Infof("Kitex 服务器创建成功")
+	// 初始化 Qwen 客户端
+	chatModel := config.GlobalConfig.AI.ChatModel
+	qwenClient := ai.NewQwenClient(&struct {
+		APIKey           string
+		Provider         string
+		ModelName        string
+		Temperature      float64
+		MaxTokens        int
+		TopP             float64
+		FrequencyPenalty float64
+		PresencePenalty  float64
+	}{
+		APIKey:           chatModel.APIKey,
+		Provider:         chatModel.Provider,
+		ModelName:        chatModel.ModelName,
+		Temperature:      chatModel.Temperature,
+		MaxTokens:        chatModel.MaxTokens,
+		TopP:             chatModel.TopP,
+		FrequencyPenalty: chatModel.FrequencyPenalty,
+		PresencePenalty:  chatModel.PresencePenalty,
+	})
 
-	logger.Infof("rag_svr start succ!")
-	logger.Warnf("test warning log!")
-
-	// 启动服务器
-	logger.Infof("正在启动 Kitex 服务器...")
-	if err := svr.Run(); err != nil {
-		logger.Errorf("服务器启动失败: %v", err)
-		os.Exit(1)
+	// 创建服务实例
+	svr := &RagServiceImpl{
+		qwenClient: qwenClient,
 	}
 
-	// 优雅关闭
+	// 创建并启动Kitex服务器
+	logger.Infof("开始创建 Kitex 服务器...")
+	s := ragservice.NewServer(
+		svr,
+		server.WithServerBasicInfo(etcd.GetRegistryInfo(config.GlobalConfig.Service.Name)),
+		server.WithServiceAddr(&net.TCPAddr{
+			IP:   net.ParseIP("0.0.0.0"),
+			Port: config.GlobalConfig.Service.Port,
+		}),
+	)
+
+	// 优雅退出
+	go func() {
+		if err := s.Run(); err != nil {
+			logger.Fatalf("服务器运行失败: %v", err)
+		}
+	}()
+
+	// 等待中断信号
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	logger.Infof("正在关闭服务器...")
-	// 停止服务器
-	if err := svr.Stop(); err != nil {
-		logger.Errorf("服务器关闭失败: %v", err)
-		os.Exit(1)
+	// 优雅关闭
+	if err := s.Stop(); err != nil {
+		logger.Fatalf("服务器关闭失败: %v", err)
 	}
 	logger.Infof("服务器已关闭")
 }

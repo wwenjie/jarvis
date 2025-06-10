@@ -8,6 +8,7 @@ services:
     volumes:
       - milvus_minio_data:/minio_data
     command: minio server /minio_data
+    restart: always
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
@@ -26,6 +27,7 @@ services:
     ports:
       - "19530:19530"
       - "9091:9091"
+    restart: always
     depends_on:
       - "minio"
 

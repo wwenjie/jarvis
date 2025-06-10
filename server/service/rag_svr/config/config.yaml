@@ -1,6 +1,7 @@
 service:
   name: "rag_svr"
   port: 8888
+  host: "0.0.0.0"
   version: "v0.0.1"
   env: "dev" # 只支持dev, test, gray, prod
   region: "cn" # 只支持cn, us, eu, as
@@ -13,9 +14,46 @@ etcd:
     - "10.1.20.17:2383"  # etcd3
   timeout: 5  # 秒
 
+redis:
+  host: "10.1.20.17"
+  port: 6379
+  password: ""
+  db: 0
+
+mysql:
+  host: "10.1.20.17"
+  port: 3306
+  username: "jarvis"
+  password: "jarvis123"
+  database: "jarvis_db"
+
+mongodb:
+  host: "10.1.20.17"
+  port: 27017
+  username: "jarvis"
+  password: "jarvis123"
+  database: "jarvis_db"
+
 milvus:
   host: "10.1.20.17"
   port: 19530
+
+# AI 模型配置
+ai:
+  chat_model:
+    provider: "dashscope"  # 支持 dashscope, openai 等
+    model_name: "qwen-turbo"  # 从环境变量 MODEL_NAME 读取
+    temperature: 0.7  # 从环境变量 TEMPERATURE 读取
+    max_tokens: 2000
+    top_p: 0.8
+    top_k: 50
+    frequency_penalty: 0.0
+    presence_penalty: 0.0
+    timeout: 30  # 秒
+  embedding_model:
+    provider: "dashscope"  # 支持 dashscope, openai 等
+    model_name: "text-embedding-v4"  # 用于文本向量化的模型
+    dimension: 1024  # 向量维度，模型的固有属性
 
 log:
   level: debug

@@ -3,11 +3,16 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"gopkg.in/yaml.v3"
 )
 
-// Config 配置结构
+var (
+	GlobalConfig *Config
+)
+
+// Config 配置结构体
 type Config struct {
 	Service struct {
 		Name    string `yaml:"name"`
@@ -23,10 +28,51 @@ type Config struct {
 		Timeout   int      `yaml:"timeout"`
 	} `yaml:"etcd"`
 
+	Redis struct {
+		Host     string `yaml:"host"`
+		Port     int    `yaml:"port"`
+		Password string `yaml:"password"`
+		DB       int    `yaml:"db"`
+	} `yaml:"redis"`
+
+	MySQL struct {
+		Host     string `yaml:"host"`
+		Port     int    `yaml:"port"`
+		Username string `yaml:"username"`
+		Password string `yaml:"password"`
+		Database string `yaml:"database"`
+	} `yaml:"mysql"`
+
+	MongoDB struct {
+		Host     string `yaml:"host"`
+		Port     int    `yaml:"port"`
+		Username string `yaml:"username"`
+		Password string `yaml:"password"`
+		Database string `yaml:"database"`
+	} `yaml:"mongodb"`
+
 	Milvus struct {
 		Host string `yaml:"host"`
 		Port int    `yaml:"port"`
 	} `yaml:"milvus"`
+
+	AI struct {
+		ChatModel struct {
+			APIKey           string  `yaml:"-"`                 // 从环境变量读取
+			Provider         string  `yaml:"provider"`          // 支持 dashscope, openai 等
+			ModelName        string  `yaml:"model_name"`        // 模型名称
+			Temperature      float64 `yaml:"temperature"`       // 温度参数
+			MaxTokens        int     `yaml:"max_tokens"`        // 最大生成token数
+			TopP             float64 `yaml:"top_p"`             // 采样阈值
+			FrequencyPenalty float64 `yaml:"frequency_penalty"` // 频率惩罚
+			PresencePenalty  float64 `yaml:"presence_penalty"`  // 存在惩罚
+		} `yaml:"chat_model"`
+		EmbeddingModel struct {
+			Provider  string `yaml:"provider"`   // 支持 dashscope, openai 等
+			ModelName string `yaml:"model_name"` // 向量化模型名称
+			Dimension int    `yaml:"dimension"`  // 向量维度
+		} `yaml:"embedding_model"`
+	} `yaml:"ai"`
 
 	Log struct {
 		Level      string `yaml:"level"`
@@ -38,15 +84,49 @@ type Config struct {
 	} `yaml:"log"`
 }
 
-var GlobalConfig = &Config{}
-
 // LoadConfig 加载配置文件
 func LoadConfig(configPath string) error {
+	// 读取配置文件
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return fmt.Errorf("读取配置文件失败: %v", err)
 	}
-	return yaml.Unmarshal(data, GlobalConfig)
+
+	// 解析配置文件
+	GlobalConfig = &Config{}
+	if err := yaml.Unmarshal(data, GlobalConfig); err != nil {
+		return fmt.Errorf("解析配置文件失败: %v", err)
+	}
+
+	// 从环境变量加载 AI 配置
+	if err := loadAIConfig(); err != nil {
+		return fmt.Errorf("加载 AI 配置失败: %v", err)
+	}
+
+	return nil
+}
+
+// loadAIConfig 从环境变量加载 AI 配置
+func loadAIConfig() error {
+	// 加载 API Key
+	GlobalConfig.AI.ChatModel.APIKey = os.Getenv("DASHSCOPE_API_KEY")
+	if GlobalConfig.AI.ChatModel.APIKey == "" {
+		return fmt.Errorf("环境变量 DASHSCOPE_API_KEY 未设置")
+	}
+
+	// 加载模型名称
+	if modelName := os.Getenv("MODEL_NAME"); modelName != "" {
+		GlobalConfig.AI.ChatModel.ModelName = modelName
+	}
+
+	// 加载温度参数
+	if temp := os.Getenv("TEMPERATURE"); temp != "" {
+		if tempFloat, err := strconv.ParseFloat(temp, 64); err == nil {
+			GlobalConfig.AI.ChatModel.Temperature = tempFloat
+		}
+	}
+
+	return nil
 }
 
 // ValidateConfig 验证配置
