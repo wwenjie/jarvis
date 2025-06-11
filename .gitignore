@@ -4,3 +4,4 @@ output/
 *.so
 *.swp
 .vscode/
+__pycache__/

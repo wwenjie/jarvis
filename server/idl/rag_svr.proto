@@ -146,6 +146,21 @@ message AddDocumentRsp {
     uint64 doc_id = 3;
 }
 
+message ListDocumentReq {
+    uint64 user_id = 1;
+    int32 page = 2;
+    int32 page_size = 3;
+}
+
+message ListDocumentRsp {
+    uint32 code = 1;
+    string msg = 2;
+    int64 total = 3;
+    int32 page = 4;
+    int32 page_size = 5;
+    repeated Document documents = 6;
+}
+
 message SearchDocumentReq {
     uint32 seq_id = 1;
     uint64 user_id = 2;
@@ -179,6 +194,31 @@ message GetSessionListRsp {
     repeated SessionInfo session_list = 6;  // 会话列表
 }
 
+// 获取会话详情
+message GetSessionReq {
+    uint32 seq_id = 1;
+    uint64 session_id = 2;
+    uint64 user_id = 3;
+}
+
+message GetSessionRsp {
+    uint32 code = 1;
+    string msg = 2;
+    SessionInfo session_info = 3;
+}
+
+// 删除文档
+message DeleteDocumentReq {
+    uint32 seq_id = 1;
+    uint64 doc_id = 2;
+    uint64 user_id = 3;
+}
+
+message DeleteDocumentRsp {
+    uint32 code = 1;
+    string msg = 2;
+}
+
 message CleanInactiveSessionsReq {
     int32 inactive_days = 1;  // 不活跃天数
 }
@@ -187,6 +227,109 @@ message CleanInactiveSessionsRsp {
     uint32 code = 1;
     string msg = 2;
     int64 cleaned_count = 3;  // 清理的会话数量
+}
+
+// 记忆管理
+message Memory {
+    uint64 memory_id = 1;
+    uint64 session_id = 2;
+    uint64 user_id = 3;
+    string content = 4;
+    string memory_type = 5;
+    double importance = 6;
+    string metadata = 7;
+    string create_time = 8;
+    string update_time = 9;
+    string expire_time = 10;
+    int32 access_count = 11;
+}
+
+message AddMemoryReq {
+    uint32 seq_id = 1;
+    uint64 session_id = 2;
+    uint64 user_id = 3;
+    string content = 4;
+    string memory_type = 5;
+    double importance = 6;
+    string metadata = 7;
+}
+
+message AddMemoryRsp {
+    uint32 code = 1;
+    string msg = 2;
+    uint64 memory_id = 3;
+}
+
+message GetMemoryReq {
+    uint32 seq_id = 1;
+    uint64 memory_id = 2;
+    uint64 user_id = 3;
+}
+
+message GetMemoryRsp {
+    uint32 code = 1;
+    string msg = 2;
+    Memory memory = 3;
+}
+
+message SearchMemoriesReq {
+    uint32 seq_id = 1;
+    uint64 user_id = 2;
+    string query = 3;
+    int32 limit = 4;
+}
+
+message SearchMemoriesRsp {
+    uint32 code = 1;
+    string msg = 2;
+    repeated Memory memories = 3;
+}
+
+message DeleteMemoryReq {
+    uint32 seq_id = 1;
+    uint64 memory_id = 2;
+    uint64 user_id = 3;
+    string reason = 4;
+}
+
+message DeleteMemoryRsp {
+    uint32 code = 1;
+    string msg = 2;
+}
+
+// 聊天记录管理
+message AddChatRecordReq {
+    uint32 seq_id = 1;
+    uint64 session_id = 2;
+    uint64 user_id = 3;
+    string message = 4;
+    string response = 5;
+    string message_type = 6;
+    string context = 7;
+    string function_calls = 8;
+    string metadata = 9;
+}
+
+message AddChatRecordRsp {
+    uint32 code = 1;
+    string msg = 2;
+    uint64 chat_id = 3;
+}
+
+message GetChatRecordsReq {
+    uint32 seq_id = 1;
+    uint64 session_id = 2;
+    int32 page = 3;
+    int32 page_size = 4;
+}
+
+message GetChatRecordsRsp {
+    uint32 code = 1;
+    string msg = 2;
+    int64 total = 3;
+    int32 page = 4;
+    int32 page_size = 5;
+    repeated ChatRecord records = 6;
 }
 
 // 定义用户服务
@@ -200,17 +343,27 @@ service RagService {
 
   // 会话管理
   rpc CreateSession(CreateSessionReq) returns (CreateSessionRsp);
+  rpc GetSession(GetSessionReq) returns (GetSessionRsp);
   rpc EndSession(EndSessionReq) returns (EndSessionRsp);
+  rpc GetSessionList(GetSessionListReq) returns (GetSessionListRsp);
+  rpc CleanInactiveSessions(CleanInactiveSessionsReq) returns (CleanInactiveSessionsRsp);
 
   // 对话管理
   rpc SendMessage(SendMessageReq) returns (SendMessageRsp);
-  rpc SendMessageStream(SendMessageReq) returns (stream SendMessageRsp);
 
   // 知识文档
-  rpc AddDocument (AddDocumentReq) returns (AddDocumentRsp);
+  rpc AddDocument(AddDocumentReq) returns (AddDocumentRsp);
+  rpc DeleteDocument(DeleteDocumentReq) returns (DeleteDocumentRsp);
   rpc SearchDocument(SearchDocumentReq) returns (SearchDocumentRsp);
+  rpc ListDocument(ListDocumentReq) returns (ListDocumentRsp);
 
-  // 会话管理
-  rpc GetSessionList(GetSessionListReq) returns (GetSessionListRsp);
-  rpc CleanInactiveSessions(CleanInactiveSessionsReq) returns (CleanInactiveSessionsRsp);
+  // 记忆管理
+  rpc AddMemory(AddMemoryReq) returns (AddMemoryRsp);
+  rpc GetMemory(GetMemoryReq) returns (GetMemoryRsp);
+  rpc SearchMemories(SearchMemoriesReq) returns (SearchMemoriesRsp);
+  rpc DeleteMemory(DeleteMemoryReq) returns (DeleteMemoryRsp);
+
+  // 聊天记录管理
+  rpc AddChatRecord(AddChatRecordReq) returns (AddChatRecordRsp);
+  rpc GetChatRecords(GetChatRecordsReq) returns (GetChatRecordsRsp);
 }

@@ -4,9 +4,9 @@ package api_gateway
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
+	"net/http"
+	"strconv"
 	"time"
 
 	// api_gateway "server/api_gateway/biz/model/api_gateway"
@@ -159,6 +159,22 @@ func CreateSession(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
+	// 检查响应状态
+	if resp.Code != 0 {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": fmt.Sprintf("创建会话失败: %s", resp.Msg),
+		})
+		return
+	}
+
+	// 检查 SessionInfo 是否为空
+	if resp.SessionInfo == nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": "创建会话失败: 返回的会话信息为空",
+		})
+		return
+	}
+
 	c.JSON(consts.StatusOK, utils.H{
 		"code":        resp.Code,
 		"msg":         resp.Msg,
@@ -264,11 +280,11 @@ func Chat(ctx context.Context, c *app.RequestContext) {
 	})
 }
 
-// AddKnowledge .
-// @router /knowledge/add [POST]
-func AddKnowledge(ctx context.Context, c *app.RequestContext) {
+// AddDocument .
+// @router /document/add [POST]
+func AddDocument(ctx context.Context, c *app.RequestContext) {
 	var err error
-	var req api_gateway.AddKnowledgeReq
+	var req api_gateway.AddDocumentReq
 	err = c.BindAndValidate(&req)
 	if err != nil {
 		c.String(consts.StatusBadRequest, err.Error())
@@ -307,11 +323,11 @@ func AddKnowledge(ctx context.Context, c *app.RequestContext) {
 	})
 }
 
-// SearchKnowledge .
-// @router /knowledge/search [GET]
-func SearchKnowledge(ctx context.Context, c *app.RequestContext) {
+// SearchDocument .
+// @router /document/search [GET]
+func SearchDocument(ctx context.Context, c *app.RequestContext) {
 	var err error
-	var req api_gateway.SearchKnowledgeReq
+	var req api_gateway.SearchDocumentReq
 	err = c.BindAndValidate(&req)
 	if err != nil {
 		c.String(consts.StatusBadRequest, err.Error())
@@ -406,11 +422,11 @@ func CreateUser(ctx context.Context, c *app.RequestContext) {
 	})
 }
 
-// ChatStream .
-// @router /chat/stream [POST]
-func ChatStream(ctx context.Context, c *app.RequestContext) {
+// ListDocument .
+// @router /document/list [GET]
+func ListDocument(ctx context.Context, c *app.RequestContext) {
 	var err error
-	var req api_gateway.ChatReq
+	var req api_gateway.ListDocumentReq
 	err = c.BindAndValidate(&req)
 	if err != nil {
 		c.String(consts.StatusBadRequest, err.Error())
@@ -428,79 +444,585 @@ func ChatStream(ctx context.Context, c *app.RequestContext) {
 
 	ragSvrClient := client.(ragservice.Client)
 
-	// 设置 SSE 响应头
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("Transfer-Encoding", "chunked")
-
-	// 创建流式请求
-	stream, err := ragSvrClient.SendMessageStream(ctx, &rag_svr.SendMessageReq{
-		SessionId:   req.SessionId,
-		UserId:      req.UserId,
-		Message:     req.Message,
-		MessageType: req.MessageType,
-		Context:     req.Context,
+	// 调用 rag_svr 的 ListDocument 方法
+	resp, err := ragSvrClient.ListDocument(ctx, &rag_svr.ListDocumentReq{
+		UserId:   req.UserId,
+		Page:     req.Page,
+		PageSize: req.PageSize,
 	})
 	if err != nil {
 		c.JSON(consts.StatusInternalServerError, utils.H{
-			"error": fmt.Sprintf("创建流式请求失败: %v", err),
+			"error": fmt.Sprintf("调用服务失败: %v", err),
 		})
 		return
 	}
 
-	// 处理流式响应
-	for {
-		resp, err := stream.Recv()
-		if err != nil {
-			if err == io.EOF {
-				// 流结束
-				break
-			}
-			c.JSON(consts.StatusInternalServerError, utils.H{
-				"error": fmt.Sprintf("接收流式响应失败: %v", err),
-			})
-			return
-		}
-
-		// 构建 SSE 消息
-		data := map[string]interface{}{
-			"code":       resp.Code,
-			"msg":        resp.Msg,
-			"response":   resp.ChatRecord.Response,
-			"session_id": resp.ChatRecord.SessionId,
-			"done":       resp.ChatRecord.Status == "completed",
-		}
-
-		// 如果是最终响应，添加额外信息
-		if resp.ChatRecord.Status == "completed" {
-			// 构建聊天记录
-			chatRecords := make([]map[string]interface{}, 0)
-			for _, record := range resp.SessionInfo.ChatRecords {
-				chatRecords = append(chatRecords, map[string]interface{}{
-					"chat_id":      record.ChatId,
-					"message":      record.Message,
-					"response":     record.Response,
-					"create_time":  record.CreateTime,
-					"message_type": record.MessageType,
-				})
-			}
-
-			data["chat_records"] = chatRecords
-			data["user_state"] = resp.SessionInfo.UserState
-			data["system_state"] = resp.SessionInfo.SystemState
-		}
-
-		// 发送 SSE 消息
-		jsonData, err := json.Marshal(data)
-		if err != nil {
-			c.JSON(consts.StatusInternalServerError, utils.H{
-				"error": fmt.Sprintf("序列化响应失败: %v", err),
-			})
-			return
-		}
-
-		c.WriteString(fmt.Sprintf("data: %s\n\n", string(jsonData)))
-		c.Flush()
+	// 构建响应
+	documents := make([]map[string]interface{}, 0)
+	for _, doc := range resp.Documents {
+		documents = append(documents, map[string]interface{}{
+			"doc_id":      doc.DocId,
+			"title":       doc.Title,
+			"content":     doc.Content,
+			"metadata":    doc.Metadata,
+			"create_time": doc.CreateTime,
+			"update_time": doc.UpdateTime,
+		})
 	}
+
+	c.JSON(consts.StatusOK, utils.H{
+		"code":      resp.Code,
+		"msg":       resp.Msg,
+		"total":     resp.Total,
+		"page":      resp.Page,
+		"page_size": resp.PageSize,
+		"documents": documents,
+	})
+}
+
+// GetSession .
+// @router /session/{session_id} [GET]
+func GetSession(ctx context.Context, c *app.RequestContext) {
+	var err error
+	var req api_gateway.GetSessionReq
+	err = c.BindAndValidate(&req)
+	if err != nil {
+		c.String(consts.StatusBadRequest, err.Error())
+		return
+	}
+
+	// 从上下文中获取客户端
+	client, exists := c.Get("rag_svr_client")
+	if !exists {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": "客户端未初始化",
+		})
+		return
+	}
+
+	ragSvrClient := client.(ragservice.Client)
+
+	// 调用 rag_svr 的 GetSession 方法
+	resp, err := ragSvrClient.GetSession(ctx, &rag_svr.GetSessionReq{
+		SessionId: req.SessionId,
+		UserId:    req.UserId,
+	})
+	if err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": fmt.Sprintf("调用服务失败: %v", err),
+		})
+		return
+	}
+
+	// 构建响应
+	chatRecords := make([]map[string]interface{}, 0)
+	for _, record := range resp.SessionInfo.ChatRecords {
+		chatRecords = append(chatRecords, map[string]interface{}{
+			"chat_id":      record.ChatId,
+			"message":      record.Message,
+			"response":     record.Response,
+			"create_time":  record.CreateTime,
+			"message_type": record.MessageType,
+			"status":       record.Status,
+		})
+	}
+
+	c.JSON(consts.StatusOK, utils.H{
+		"code":         resp.Code,
+		"msg":          resp.Msg,
+		"session_id":   resp.SessionInfo.SessionId,
+		"user_id":      resp.SessionInfo.UserId,
+		"title":        resp.SessionInfo.Title,
+		"summary":      resp.SessionInfo.Summary,
+		"status":       resp.SessionInfo.Status,
+		"create_time":  resp.SessionInfo.CreateTime,
+		"update_time":  resp.SessionInfo.UpdateTime,
+		"user_state":   resp.SessionInfo.UserState,
+		"system_state": resp.SessionInfo.SystemState,
+		"metadata":     resp.SessionInfo.Metadata,
+		"chat_records": chatRecords,
+	})
+}
+
+// GetSessionList .
+// @router /session/list [GET]
+func GetSessionList(ctx context.Context, c *app.RequestContext) {
+	var err error
+	var req api_gateway.GetSessionListReq
+	err = c.BindAndValidate(&req)
+	if err != nil {
+		c.String(consts.StatusBadRequest, err.Error())
+		return
+	}
+
+	// 从上下文中获取客户端
+	client, exists := c.Get("rag_svr_client")
+	if !exists {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": "客户端未初始化",
+		})
+		return
+	}
+
+	ragSvrClient := client.(ragservice.Client)
+
+	// 调用 rag_svr 的 GetSessionList 方法
+	resp, err := ragSvrClient.GetSessionList(ctx, &rag_svr.GetSessionListReq{
+		UserId:   req.UserId,
+		Page:     req.Page,
+		PageSize: req.PageSize,
+		Status:   req.Status,
+	})
+	if err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": fmt.Sprintf("调用服务失败: %v", err),
+		})
+		return
+	}
+
+	// 构建响应
+	sessions := make([]map[string]interface{}, 0)
+	for _, session := range resp.SessionList {
+		sessions = append(sessions, map[string]interface{}{
+			"session_id":   session.SessionId,
+			"user_id":      session.UserId,
+			"title":        session.Title,
+			"summary":      session.Summary,
+			"status":       session.Status,
+			"create_time":  session.CreateTime,
+			"update_time":  session.UpdateTime,
+			"user_state":   session.UserState,
+			"system_state": session.SystemState,
+			"metadata":     session.Metadata,
+		})
+	}
+
+	c.JSON(consts.StatusOK, utils.H{
+		"code":      resp.Code,
+		"msg":       resp.Msg,
+		"total":     resp.Total,
+		"page":      resp.Page,
+		"page_size": resp.PageSize,
+		"sessions":  sessions,
+	})
+}
+
+// DeleteDocument .
+// @router /document/{doc_id} [DELETE]
+func DeleteDocument(ctx context.Context, c *app.RequestContext) {
+	var err error
+	var req api_gateway.DeleteDocumentReq
+	err = c.BindAndValidate(&req)
+	if err != nil {
+		c.String(consts.StatusBadRequest, err.Error())
+		return
+	}
+
+	// 从上下文中获取客户端
+	client, exists := c.Get("rag_svr_client")
+	if !exists {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": "客户端未初始化",
+		})
+		return
+	}
+
+	ragSvrClient := client.(ragservice.Client)
+
+	// 调用 rag_svr 的 DeleteDocument 方法
+	resp, err := ragSvrClient.DeleteDocument(ctx, &rag_svr.DeleteDocumentReq{
+		DocId:  req.DocId,
+		UserId: req.UserId,
+	})
+	if err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": fmt.Sprintf("调用服务失败: %v", err),
+		})
+		return
+	}
+
+	c.JSON(consts.StatusOK, utils.H{
+		"code": resp.Code,
+		"msg":  resp.Msg,
+	})
+}
+
+// AddMemory 添加记忆
+func AddMemory(ctx context.Context, c *app.RequestContext) {
+	var req api_gateway.AddMemoryReq
+	if err := c.BindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("解析请求失败: %v", err),
+		})
+		return
+	}
+
+	// 从上下文中获取客户端
+	client, exists := c.Get("rag_svr_client")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  "客户端未初始化",
+		})
+		return
+	}
+
+	ragSvrClient := client.(ragservice.Client)
+
+	// 调用 RAG 服务
+	resp, err := ragSvrClient.AddMemory(ctx, &rag_svr.AddMemoryReq{
+		UserId:     req.UserId,
+		Content:    req.Content,
+		MemoryType: req.MemoryType,
+		Importance: req.Importance,
+		Metadata:   req.Metadata,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("添加记忆失败: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, api_gateway.AddMemoryRsp{
+		Code:     resp.Code,
+		Msg:      resp.Msg,
+		MemoryId: resp.MemoryId,
+	})
+}
+
+// GetMemory 获取记忆
+func GetMemory(ctx context.Context, c *app.RequestContext) {
+	memoryId := c.Query("memory_id")
+	if memoryId == "" {
+		c.JSON(http.StatusBadRequest, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  "memory_id 不能为空",
+		})
+		return
+	}
+
+	id, err := strconv.ParseUint(memoryId, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("无效的 memory_id: %v", err),
+		})
+		return
+	}
+
+	// 从上下文中获取客户端
+	client, exists := c.Get("rag_svr_client")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  "客户端未初始化",
+		})
+		return
+	}
+
+	ragSvrClient := client.(ragservice.Client)
+
+	// 调用 RAG 服务
+	resp, err := ragSvrClient.GetMemory(ctx, &rag_svr.GetMemoryReq{
+		MemoryId: id,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("获取记忆失败: %v", err),
+		})
+		return
+	}
+
+	// 转换 Memory 类型
+	memory := &api_gateway.Memory{
+		MemoryId:    resp.Memory.MemoryId,
+		UserId:      resp.Memory.UserId,
+		Content:     resp.Memory.Content,
+		MemoryType:  resp.Memory.MemoryType,
+		Importance:  resp.Memory.Importance,
+		Metadata:    resp.Memory.Metadata,
+		CreateTime:  resp.Memory.CreateTime,
+		UpdateTime:  resp.Memory.UpdateTime,
+		ExpireTime:  resp.Memory.ExpireTime,
+		AccessCount: resp.Memory.AccessCount,
+	}
+
+	c.JSON(http.StatusOK, api_gateway.GetMemoryRsp{
+		Code:   uint32(resp.Code),
+		Msg:    resp.Msg,
+		Memory: memory,
+	})
+}
+
+// SearchMemories 搜索记忆
+func SearchMemories(ctx context.Context, c *app.RequestContext) {
+	query := c.Query("query")
+	if query == "" {
+		c.JSON(http.StatusBadRequest, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  "query 不能为空",
+		})
+		return
+	}
+
+	limit := c.DefaultQuery("limit", "10")
+	limitInt, err := strconv.Atoi(limit)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("无效的 limit: %v", err),
+		})
+		return
+	}
+
+	// 从上下文中获取客户端
+	client, exists := c.Get("rag_svr_client")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  "客户端未初始化",
+		})
+		return
+	}
+
+	ragSvrClient := client.(ragservice.Client)
+
+	// 调用 RAG 服务
+	resp, err := ragSvrClient.SearchMemories(ctx, &rag_svr.SearchMemoriesReq{
+		Query: query,
+		Limit: int32(limitInt),
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("搜索记忆失败: %v", err),
+		})
+		return
+	}
+
+	// 转换 Memories 类型
+	memories := make([]*api_gateway.Memory, len(resp.Memories))
+	for i, m := range resp.Memories {
+		memories[i] = &api_gateway.Memory{
+			MemoryId:    m.MemoryId,
+			UserId:      m.UserId,
+			Content:     m.Content,
+			MemoryType:  m.MemoryType,
+			Importance:  m.Importance,
+			Metadata:    m.Metadata,
+			CreateTime:  m.CreateTime,
+			UpdateTime:  m.UpdateTime,
+			ExpireTime:  m.ExpireTime,
+			AccessCount: m.AccessCount,
+		}
+	}
+
+	c.JSON(http.StatusOK, api_gateway.SearchMemoriesRsp{
+		Code:     uint32(resp.Code),
+		Msg:      resp.Msg,
+		Memories: memories,
+	})
+}
+
+// DeleteMemory 删除记忆
+func DeleteMemory(ctx context.Context, c *app.RequestContext) {
+	memoryId := c.Param("memory_id")
+	if memoryId == "" {
+		c.JSON(http.StatusBadRequest, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  "memory_id 不能为空",
+		})
+		return
+	}
+
+	id, err := strconv.ParseUint(memoryId, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("无效的 memory_id: %v", err),
+		})
+		return
+	}
+
+	var req api_gateway.DeleteMemoryReq
+	if err := c.BindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("解析请求失败: %v", err),
+		})
+		return
+	}
+
+	// 从上下文中获取客户端
+	client, exists := c.Get("rag_svr_client")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  "客户端未初始化",
+		})
+		return
+	}
+
+	ragSvrClient := client.(ragservice.Client)
+
+	// 调用 RAG 服务
+	resp, err := ragSvrClient.DeleteMemory(ctx, &rag_svr.DeleteMemoryReq{
+		MemoryId: id,
+		Reason:   req.Reason,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("删除记忆失败: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, api_gateway.DeleteMemoryRsp{
+		Code: resp.Code,
+		Msg:  resp.Msg,
+	})
+}
+
+// AddChatRecord 添加聊天记录
+func AddChatRecord(ctx context.Context, c *app.RequestContext) {
+	var req api_gateway.AddChatRecordReq
+	if err := c.BindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("解析请求失败: %v", err),
+		})
+		return
+	}
+
+	// 从上下文中获取客户端
+	client, exists := c.Get("rag_svr_client")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  "客户端未初始化",
+		})
+		return
+	}
+
+	ragSvrClient := client.(ragservice.Client)
+
+	// 调用 RAG 服务
+	resp, err := ragSvrClient.AddChatRecord(ctx, &rag_svr.AddChatRecordReq{
+		SessionId:     uint64(req.SessionId),
+		UserId:        uint64(req.UserId),
+		Message:       req.Message,
+		Response:      req.Response,
+		MessageType:   req.MessageType,
+		Context:       req.Context,
+		FunctionCalls: req.FunctionCalls,
+		Metadata:      req.Metadata,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("添加聊天记录失败: %v", err),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, api_gateway.AddChatRecordRsp{
+		Code:   int32(resp.Code),
+		Msg:    resp.Msg,
+		ChatId: int64(resp.ChatId),
+	})
+}
+
+// GetChatRecords 获取聊天记录
+func GetChatRecords(ctx context.Context, c *app.RequestContext) {
+	sessionId := c.Param("session_id")
+	if sessionId == "" {
+		c.JSON(http.StatusBadRequest, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  "session_id 不能为空",
+		})
+		return
+	}
+
+	id, err := strconv.ParseUint(sessionId, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("无效的 session_id: %v", err),
+		})
+		return
+	}
+
+	page := c.DefaultQuery("page", "1")
+	pageSize := c.DefaultQuery("page_size", "20")
+	pageInt, err := strconv.Atoi(page)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("无效的 page: %v", err),
+		})
+		return
+	}
+	pageSizeInt, err := strconv.Atoi(pageSize)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("无效的 page_size: %v", err),
+		})
+		return
+	}
+
+	// 从上下文中获取客户端
+	client, exists := c.Get("rag_svr_client")
+	if !exists {
+		c.JSON(http.StatusInternalServerError, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  "客户端未初始化",
+		})
+		return
+	}
+
+	ragSvrClient := client.(ragservice.Client)
+
+	// 调用 RAG 服务
+	resp, err := ragSvrClient.GetChatRecords(ctx, &rag_svr.GetChatRecordsReq{
+		SessionId: id,
+		Page:      int32(pageInt),
+		PageSize:  int32(pageSizeInt),
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("获取聊天记录失败: %v", err),
+		})
+		return
+	}
+
+	// 转换 Records 类型
+	records := make([]*api_gateway.ChatRecord, len(resp.Records))
+	for i, r := range resp.Records {
+		records[i] = &api_gateway.ChatRecord{
+			ChatId:      int64(r.ChatId),
+			SessionId:   int64(r.SessionId),
+			UserId:      int64(r.UserId),
+			Message:     r.Message,
+			Response:    r.Response,
+			MessageType: r.MessageType,
+			Status:      r.Status,
+			CreateTime:  r.CreateTime,
+		}
+	}
+
+	c.JSON(http.StatusOK, api_gateway.GetChatRecordsRsp{
+		Code:     int32(resp.Code),
+		Msg:      resp.Msg,
+		Total:    resp.Total,
+		Page:     resp.Page,
+		PageSize: resp.PageSize,
+		Records:  records,
+	})
 }

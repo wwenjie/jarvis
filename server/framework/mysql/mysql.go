@@ -93,9 +93,28 @@ func autoMigrate() error {
 
 	for _, idx := range indexes {
 		indexName := fmt.Sprintf("idx_%s_%s", idx.table, strings.Join(idx.columns, "_"))
-		if err := db.Exec(fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON %s (%s)",
-			indexName, idx.table, strings.Join(idx.columns, ", "))).Error; err != nil {
-			return fmt.Errorf("创建索引 %s 失败: %v", indexName, err)
+
+		// 检查索引是否存在
+		var count int64
+		checkSQL := fmt.Sprintf(`
+			SELECT COUNT(1) 
+			FROM information_schema.statistics 
+			WHERE table_schema = DATABASE() 
+			AND table_name = '%s' 
+			AND index_name = '%s'`,
+			idx.table, indexName)
+
+		if err := db.Raw(checkSQL).Count(&count).Error; err != nil {
+			return fmt.Errorf("检查索引 %s 是否存在失败: %v", indexName, err)
+		}
+
+		// 如果索引不存在，则创建
+		if count == 0 {
+			createSQL := fmt.Sprintf("CREATE INDEX %s ON %s (%s)",
+				indexName, idx.table, strings.Join(idx.columns, ", "))
+			if err := db.Exec(createSQL).Error; err != nil {
+				return fmt.Errorf("创建索引 %s 失败: %v", indexName, err)
+			}
 		}
 	}
 
@@ -123,7 +142,7 @@ type Session struct {
 	UserState      string    `gorm:"type:json"` // 用户状态，JSON格式，包含 last_intent, intent_confidence, last_sentiment 等字段
 	SystemState    string    `gorm:"type:json"` // 系统状态，JSON格式
 	Metadata       string    `gorm:"type:json"` // 元数据，JSON格式
-	LastActiveTime time.Time `gorm:"not null;default:CURRENT_TIMESTAMP"`
+	LastActiveTime time.Time `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP"`
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }

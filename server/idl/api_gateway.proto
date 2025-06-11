@@ -3,6 +3,7 @@ syntax = "proto3";
 package api_gateway;
 
 import "third_party/hertz/api.proto";
+import "rag_svr.proto";  // 导入 rag_svr.proto 以使用 SessionInfo 和 ChatRecord
 
 option go_package = "api_gateway";
 
@@ -55,6 +56,33 @@ message CreateSessionRsp {
     string create_time = 4;
 }
 
+message GetSessionReq {
+    uint64 session_id = 1[(api.query) = "session_id", (api.vd) = "$>0"];
+    uint64 user_id = 2[(api.query) = "user_id", (api.vd) = "$>0"];
+}
+
+message GetSessionRsp {
+    uint32 code = 1;
+    string msg = 2;
+    rag_svr.SessionInfo session_info = 3;  // 使用完整的包名
+}
+
+message GetSessionListReq {
+    uint64 user_id = 1[(api.query) = "user_id", (api.vd) = "$>0"];
+    int32 page = 2[(api.query) = "page", (api.vd) = "$>0"];
+    int32 page_size = 3[(api.query) = "page_size", (api.vd) = "$>0"];
+    string status = 4[(api.query) = "status"];  // 可选的状态过滤
+}
+
+message GetSessionListRsp {
+    uint32 code = 1;
+    string msg = 2;
+    int64 total = 3;
+    int32 page = 4;
+    int32 page_size = 5;
+    repeated rag_svr.SessionInfo session_list = 6;  // 使用完整的包名
+}
+
 message EndSessionReq {
     uint64 session_id = 1[(api.body) = "session_id", (api.vd) = "$>0"];
 }
@@ -77,46 +105,72 @@ message ChatRsp {
     uint32 code = 1;
     string msg = 2;
     string response = 3;
-    repeated ChatRecord chat_records = 4;  // 最近的对话记录
+    repeated rag_svr.ChatRecord chat_records = 4;  // 使用完整的包名
     map<string, string> user_state = 5;    // 用户状态
     map<string, string> system_state = 6;  // 系统状态
 }
 
-message ChatRecord {
-    uint64 chat_id = 1;
-    string message = 2;
-    string response = 3;
-    string create_time = 4;
-    string message_type = 5;
-}
-
 // 知识库管理
-message AddKnowledgeReq {
+message AddDocumentReq {
     uint64 user_id = 1[(api.body) = "user_id", (api.vd) = "$>0"];
     string title = 2[(api.body) = "title", (api.vd) = "$!=''"];
     string content = 3[(api.body) = "content", (api.vd) = "$!=''"];
     string metadata = 4[(api.body) = "metadata"];
 }
 
-message AddKnowledgeRsp {
+message AddDocumentRsp {
     uint32 code = 1;
     string msg = 2;
     uint64 doc_id = 3;
 }
 
-message SearchKnowledgeReq {
+message DeleteDocumentReq {
+    uint64 doc_id = 1[(api.query) = "doc_id", (api.vd) = "$>0"];
+    uint64 user_id = 2[(api.query) = "user_id", (api.vd) = "$>0"];
+}
+
+message DeleteDocumentRsp {
+    uint32 code = 1;
+    string msg = 2;
+}
+
+message ListDocumentReq {
+    uint64 user_id = 1[(api.query) = "user_id", (api.vd) = "$>0"];
+    int32 page = 2[(api.query) = "page", (api.vd) = "$>0"];
+    int32 page_size = 3[(api.query) = "page_size", (api.vd) = "$>0"];
+}
+
+message ListDocumentRsp {
+    uint32 code = 1;
+    string msg = 2;
+    int64 total = 3;
+    int32 page = 4;
+    int32 page_size = 5;
+    repeated Document documents = 6;
+}
+
+message Document {
+    uint64 doc_id = 1;
+    string title = 2;
+    string content = 3;
+    string metadata = 4;
+    string create_time = 5;
+    string update_time = 6;
+}
+
+message SearchDocumentReq {
     uint64 user_id = 1[(api.query) = "user_id", (api.vd) = "$>0"];
     string query = 2[(api.query) = "query", (api.vd) = "$!=''"];
     int32 top_k = 3[(api.query) = "top_k", (api.vd) = "$>0"];
 }
 
-message SearchKnowledgeRsp {
+message SearchDocumentRsp {
     uint32 code = 1;
     string msg = 2;
-    repeated KnowledgeResult results = 3;
+    repeated DocumentResult results = 3;
 }
 
-message KnowledgeResult {
+message DocumentResult {
     uint64 doc_id = 1;
     string title = 2;
     string content = 3;
@@ -138,6 +192,112 @@ message CreateUserRsp {
     string email = 5;
 }
 
+// 记忆管理
+message AddMemoryReq {
+    uint64 user_id = 1[(api.body) = "user_id", (api.vd) = "$>0"];
+    string content = 2[(api.body) = "content", (api.vd) = "$!=''"];
+    string memory_type = 3[(api.body) = "memory_type", (api.vd) = "$in=['fact','reminder','preference','context']"];
+    double importance = 4[(api.body) = "importance", (api.vd) = "$>=0 && $<=1"];
+    string metadata = 5[(api.body) = "metadata"];  // JSON 格式的元数据
+}
+
+message AddMemoryRsp {
+    uint32 code = 1;
+    string msg = 2;
+    uint64 memory_id = 3;
+}
+
+message GetMemoryReq {
+    uint64 memory_id = 1[(api.query) = "memory_id", (api.vd) = "$>0"];
+}
+
+message GetMemoryRsp {
+    uint32 code = 1;
+    string msg = 2;
+    Memory memory = 3;
+}
+
+message SearchMemoriesReq {
+    string query = 1[(api.query) = "query", (api.vd) = "$!=''"];
+    int32 limit = 2[(api.query) = "limit", (api.vd) = "$>0"];
+}
+
+message SearchMemoriesRsp {
+    uint32 code = 1;
+    string msg = 2;
+    repeated Memory memories = 3;
+}
+
+message Memory {
+    uint64 memory_id = 1;
+    uint64 user_id = 2;
+    string content = 3;
+    string memory_type = 4;
+    double importance = 5;
+    string metadata = 6;
+    string create_time = 7;
+    string update_time = 8;
+    string expire_time = 9;
+    int32 access_count = 10;
+}
+
+// 记忆管理
+message DeleteMemoryReq {
+    uint64 memory_id = 1[(api.query) = "memory_id", (api.vd) = "$>0"];
+    string reason = 2[(api.body) = "reason"];  // 删除原因，由大模型提供
+}
+
+message DeleteMemoryRsp {
+    uint32 code = 1;
+    string msg = 2;
+}
+
+// 聊天记录相关消息
+message ChatRecord {
+    int64 chat_id = 1;        // 聊天记录ID
+    int64 session_id = 2;     // 会话ID
+    int64 user_id = 3;        // 用户ID
+    string message = 4;       // 用户消息
+    string response = 5;      // AI响应
+    string message_type = 6;  // 消息类型
+    string status = 7;        // 状态
+    string create_time = 8;   // 创建时间
+}
+
+message AddChatRecordReq {
+    int64 seq_id = 1;         // 序列号
+    int64 session_id = 2;     // 会话ID
+    int64 user_id = 3;        // 用户ID
+    string message = 4;       // 用户消息
+    string response = 5;      // AI响应
+    string message_type = 6;  // 消息类型
+    string context = 7;       // 上下文
+    string function_calls = 8;// 函数调用
+    string metadata = 9;      // 元数据
+}
+
+message AddChatRecordRsp {
+    int32 code = 1;          // 状态码
+    string msg = 2;          // 状态信息
+    int64 chat_id = 3;       // 聊天记录ID
+}
+
+message GetChatRecordsReq {
+    int64 seq_id = 1;        // 序列号
+    int64 session_id = 2;    // 会话ID
+    int32 page = 3;          // 页码
+    int32 page_size = 4;     // 每页大小
+}
+
+message GetChatRecordsRsp {
+    int32 code = 1;          // 状态码
+    string msg = 2;          // 状态信息
+    int64 total = 3;         // 总记录数
+    int32 page = 4;          // 当前页码
+    int32 page_size = 5;     // 每页大小
+    repeated ChatRecord records = 6; // 聊天记录列表
+}
+
 // 定义服务
 service ApiGatewayService {
     // 测试接口
@@ -155,28 +315,55 @@ service ApiGatewayService {
     rpc CreateSession(CreateSessionReq) returns (CreateSessionRsp) {
         option (api.post) = "/session/create";
     }
+    rpc GetSession(GetSessionReq) returns (GetSessionRsp) {
+        option (api.get) = "/session/{session_id}";
+    }
+    rpc GetSessionList(GetSessionListReq) returns (GetSessionListRsp) {
+        option (api.get) = "/session/list";
+    }
     rpc EndSession(EndSessionReq) returns (EndSessionRsp) {
         option (api.post) = "/session/end";
     }
     
-    // 对话管理
-    rpc Chat(ChatReq) returns (ChatRsp) {
-        option (api.post) = "/chat";
-    }
-    rpc ChatStream(ChatReq) returns (stream ChatRsp) {
-        option (api.post) = "/chat/stream";
-    }
-    
     // 知识库管理
-    rpc AddKnowledge(AddKnowledgeReq) returns (AddKnowledgeRsp) {
-        option (api.post) = "/knowledge/add";
+    rpc AddDocument(AddDocumentReq) returns (AddDocumentRsp) {
+        option (api.post) = "/document/add";
     }
-    rpc SearchKnowledge(SearchKnowledgeReq) returns (SearchKnowledgeRsp) {
-        option (api.get) = "/knowledge/search";
+    rpc DeleteDocument(DeleteDocumentReq) returns (DeleteDocumentRsp) {
+        option (api.delete) = "/document/{doc_id}";
+    }
+    rpc SearchDocument(SearchDocumentReq) returns (SearchDocumentRsp) {
+        option (api.get) = "/document/search";
+    }
+    rpc ListDocument(ListDocumentReq) returns (ListDocumentRsp) {
+        option (api.get) = "/document/list";
     }
     
     // 用户管理
     rpc CreateUser(CreateUserReq) returns (CreateUserRsp) {
         option (api.post) = "/user/create";
+    }
+    
+    // 记忆管理
+    rpc AddMemory(AddMemoryReq) returns (AddMemoryRsp) {
+        option (api.post) = "/memory/add";
+    }
+    rpc GetMemory(GetMemoryReq) returns (GetMemoryRsp) {
+        option (api.get) = "/memory/get";
+    }
+    rpc SearchMemories(SearchMemoriesReq) returns (SearchMemoriesRsp) {
+        option (api.get) = "/memory/search";
+    }
+    rpc DeleteMemory(DeleteMemoryReq) returns (DeleteMemoryRsp) {
+        option (api.delete) = "/memory/{memory_id}";
+    }
+    
+    // 聊天记录管理
+    rpc AddChatRecord(AddChatRecordReq) returns (AddChatRecordRsp) {
+        option (api.post) = "/chat/record";
+    }
+    
+    rpc GetChatRecords(GetChatRecordsReq) returns (GetChatRecordsRsp) {
+        option (api.get) = "/chat/records/{session_id}";
     }
 }

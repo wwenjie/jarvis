@@ -5,7 +5,6 @@ package rag_svr
 import (
 	"context"
 
-	"github.com/cloudwego/kitex/pkg/streaming"
 	"github.com/cloudwego/prutal"
 )
 
@@ -790,6 +789,96 @@ func (x *AddDocumentRsp) GetDocId() uint64 {
 	return 0
 }
 
+type ListDocumentReq struct {
+	UserId   uint64 `protobuf:"varint,1,opt,name=user_id" json:"user_id,omitempty"`
+	Page     int32  `protobuf:"varint,2,opt,name=page" json:"page,omitempty"`
+	PageSize int32  `protobuf:"varint,3,opt,name=page_size" json:"page_size,omitempty"`
+}
+
+func (x *ListDocumentReq) Reset() { *x = ListDocumentReq{} }
+
+func (x *ListDocumentReq) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *ListDocumentReq) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *ListDocumentReq) GetUserId() uint64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *ListDocumentReq) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *ListDocumentReq) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+type ListDocumentRsp struct {
+	Code      uint32      `protobuf:"varint,1,opt,name=code" json:"code,omitempty"`
+	Msg       string      `protobuf:"bytes,2,opt,name=msg" json:"msg,omitempty"`
+	Total     int64       `protobuf:"varint,3,opt,name=total" json:"total,omitempty"`
+	Page      int32       `protobuf:"varint,4,opt,name=page" json:"page,omitempty"`
+	PageSize  int32       `protobuf:"varint,5,opt,name=page_size" json:"page_size,omitempty"`
+	Documents []*Document `protobuf:"bytes,6,rep,name=documents" json:"documents,omitempty"`
+}
+
+func (x *ListDocumentRsp) Reset() { *x = ListDocumentRsp{} }
+
+func (x *ListDocumentRsp) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *ListDocumentRsp) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *ListDocumentRsp) GetCode() uint32 {
+	if x != nil {
+		return x.Code
+	}
+	return 0
+}
+
+func (x *ListDocumentRsp) GetMsg() string {
+	if x != nil {
+		return x.Msg
+	}
+	return ""
+}
+
+func (x *ListDocumentRsp) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *ListDocumentRsp) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *ListDocumentRsp) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListDocumentRsp) GetDocuments() []*Document {
+	if x != nil {
+		return x.Documents
+	}
+	return nil
+}
+
 type SearchDocumentReq struct {
 	SeqId  uint32 `protobuf:"varint,1,opt,name=seq_id" json:"seq_id,omitempty"`
 	UserId uint64 `protobuf:"varint,2,opt,name=user_id" json:"user_id,omitempty"`
@@ -987,6 +1076,132 @@ func (x *GetSessionListRsp) GetSessionList() []*SessionInfo {
 	return nil
 }
 
+// 获取会话详情
+type GetSessionReq struct {
+	SeqId     uint32 `protobuf:"varint,1,opt,name=seq_id" json:"seq_id,omitempty"`
+	SessionId uint64 `protobuf:"varint,2,opt,name=session_id" json:"session_id,omitempty"`
+	UserId    uint64 `protobuf:"varint,3,opt,name=user_id" json:"user_id,omitempty"`
+}
+
+func (x *GetSessionReq) Reset() { *x = GetSessionReq{} }
+
+func (x *GetSessionReq) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *GetSessionReq) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *GetSessionReq) GetSeqId() uint32 {
+	if x != nil {
+		return x.SeqId
+	}
+	return 0
+}
+
+func (x *GetSessionReq) GetSessionId() uint64 {
+	if x != nil {
+		return x.SessionId
+	}
+	return 0
+}
+
+func (x *GetSessionReq) GetUserId() uint64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+type GetSessionRsp struct {
+	Code        uint32       `protobuf:"varint,1,opt,name=code" json:"code,omitempty"`
+	Msg         string       `protobuf:"bytes,2,opt,name=msg" json:"msg,omitempty"`
+	SessionInfo *SessionInfo `protobuf:"bytes,3,opt,name=session_info" json:"session_info,omitempty"`
+}
+
+func (x *GetSessionRsp) Reset() { *x = GetSessionRsp{} }
+
+func (x *GetSessionRsp) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *GetSessionRsp) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *GetSessionRsp) GetCode() uint32 {
+	if x != nil {
+		return x.Code
+	}
+	return 0
+}
+
+func (x *GetSessionRsp) GetMsg() string {
+	if x != nil {
+		return x.Msg
+	}
+	return ""
+}
+
+func (x *GetSessionRsp) GetSessionInfo() *SessionInfo {
+	if x != nil {
+		return x.SessionInfo
+	}
+	return nil
+}
+
+// 删除文档
+type DeleteDocumentReq struct {
+	SeqId  uint32 `protobuf:"varint,1,opt,name=seq_id" json:"seq_id,omitempty"`
+	DocId  uint64 `protobuf:"varint,2,opt,name=doc_id" json:"doc_id,omitempty"`
+	UserId uint64 `protobuf:"varint,3,opt,name=user_id" json:"user_id,omitempty"`
+}
+
+func (x *DeleteDocumentReq) Reset() { *x = DeleteDocumentReq{} }
+
+func (x *DeleteDocumentReq) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *DeleteDocumentReq) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *DeleteDocumentReq) GetSeqId() uint32 {
+	if x != nil {
+		return x.SeqId
+	}
+	return 0
+}
+
+func (x *DeleteDocumentReq) GetDocId() uint64 {
+	if x != nil {
+		return x.DocId
+	}
+	return 0
+}
+
+func (x *DeleteDocumentReq) GetUserId() uint64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+type DeleteDocumentRsp struct {
+	Code uint32 `protobuf:"varint,1,opt,name=code" json:"code,omitempty"`
+	Msg  string `protobuf:"bytes,2,opt,name=msg" json:"msg,omitempty"`
+}
+
+func (x *DeleteDocumentRsp) Reset() { *x = DeleteDocumentRsp{} }
+
+func (x *DeleteDocumentRsp) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *DeleteDocumentRsp) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *DeleteDocumentRsp) GetCode() uint32 {
+	if x != nil {
+		return x.Code
+	}
+	return 0
+}
+
+func (x *DeleteDocumentRsp) GetMsg() string {
+	if x != nil {
+		return x.Msg
+	}
+	return ""
+}
+
 type CleanInactiveSessionsReq struct {
 	InactiveDays int32 `protobuf:"varint,1,opt,name=inactive_days" json:"inactive_days,omitempty"` // 不活跃天数
 }
@@ -1041,21 +1256,639 @@ func (x *CleanInactiveSessionsRsp) GetCleanedCount() int64 {
 	return 0
 }
 
+// 记忆管理
+type Memory struct {
+	MemoryId    uint64  `protobuf:"varint,1,opt,name=memory_id" json:"memory_id,omitempty"`
+	SessionId   uint64  `protobuf:"varint,2,opt,name=session_id" json:"session_id,omitempty"`
+	UserId      uint64  `protobuf:"varint,3,opt,name=user_id" json:"user_id,omitempty"`
+	Content     string  `protobuf:"bytes,4,opt,name=content" json:"content,omitempty"`
+	MemoryType  string  `protobuf:"bytes,5,opt,name=memory_type" json:"memory_type,omitempty"`
+	Importance  float64 `protobuf:"fixed64,6,opt,name=importance" json:"importance,omitempty"`
+	Metadata    string  `protobuf:"bytes,7,opt,name=metadata" json:"metadata,omitempty"`
+	CreateTime  string  `protobuf:"bytes,8,opt,name=create_time" json:"create_time,omitempty"`
+	UpdateTime  string  `protobuf:"bytes,9,opt,name=update_time" json:"update_time,omitempty"`
+	ExpireTime  string  `protobuf:"bytes,10,opt,name=expire_time" json:"expire_time,omitempty"`
+	AccessCount int32   `protobuf:"varint,11,opt,name=access_count" json:"access_count,omitempty"`
+}
+
+func (x *Memory) Reset() { *x = Memory{} }
+
+func (x *Memory) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *Memory) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *Memory) GetMemoryId() uint64 {
+	if x != nil {
+		return x.MemoryId
+	}
+	return 0
+}
+
+func (x *Memory) GetSessionId() uint64 {
+	if x != nil {
+		return x.SessionId
+	}
+	return 0
+}
+
+func (x *Memory) GetUserId() uint64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *Memory) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *Memory) GetMemoryType() string {
+	if x != nil {
+		return x.MemoryType
+	}
+	return ""
+}
+
+func (x *Memory) GetImportance() float64 {
+	if x != nil {
+		return x.Importance
+	}
+	return 0
+}
+
+func (x *Memory) GetMetadata() string {
+	if x != nil {
+		return x.Metadata
+	}
+	return ""
+}
+
+func (x *Memory) GetCreateTime() string {
+	if x != nil {
+		return x.CreateTime
+	}
+	return ""
+}
+
+func (x *Memory) GetUpdateTime() string {
+	if x != nil {
+		return x.UpdateTime
+	}
+	return ""
+}
+
+func (x *Memory) GetExpireTime() string {
+	if x != nil {
+		return x.ExpireTime
+	}
+	return ""
+}
+
+func (x *Memory) GetAccessCount() int32 {
+	if x != nil {
+		return x.AccessCount
+	}
+	return 0
+}
+
+type AddMemoryReq struct {
+	SeqId      uint32  `protobuf:"varint,1,opt,name=seq_id" json:"seq_id,omitempty"`
+	SessionId  uint64  `protobuf:"varint,2,opt,name=session_id" json:"session_id,omitempty"`
+	UserId     uint64  `protobuf:"varint,3,opt,name=user_id" json:"user_id,omitempty"`
+	Content    string  `protobuf:"bytes,4,opt,name=content" json:"content,omitempty"`
+	MemoryType string  `protobuf:"bytes,5,opt,name=memory_type" json:"memory_type,omitempty"`
+	Importance float64 `protobuf:"fixed64,6,opt,name=importance" json:"importance,omitempty"`
+	Metadata   string  `protobuf:"bytes,7,opt,name=metadata" json:"metadata,omitempty"`
+}
+
+func (x *AddMemoryReq) Reset() { *x = AddMemoryReq{} }
+
+func (x *AddMemoryReq) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *AddMemoryReq) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *AddMemoryReq) GetSeqId() uint32 {
+	if x != nil {
+		return x.SeqId
+	}
+	return 0
+}
+
+func (x *AddMemoryReq) GetSessionId() uint64 {
+	if x != nil {
+		return x.SessionId
+	}
+	return 0
+}
+
+func (x *AddMemoryReq) GetUserId() uint64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *AddMemoryReq) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+func (x *AddMemoryReq) GetMemoryType() string {
+	if x != nil {
+		return x.MemoryType
+	}
+	return ""
+}
+
+func (x *AddMemoryReq) GetImportance() float64 {
+	if x != nil {
+		return x.Importance
+	}
+	return 0
+}
+
+func (x *AddMemoryReq) GetMetadata() string {
+	if x != nil {
+		return x.Metadata
+	}
+	return ""
+}
+
+type AddMemoryRsp struct {
+	Code     uint32 `protobuf:"varint,1,opt,name=code" json:"code,omitempty"`
+	Msg      string `protobuf:"bytes,2,opt,name=msg" json:"msg,omitempty"`
+	MemoryId uint64 `protobuf:"varint,3,opt,name=memory_id" json:"memory_id,omitempty"`
+}
+
+func (x *AddMemoryRsp) Reset() { *x = AddMemoryRsp{} }
+
+func (x *AddMemoryRsp) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *AddMemoryRsp) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *AddMemoryRsp) GetCode() uint32 {
+	if x != nil {
+		return x.Code
+	}
+	return 0
+}
+
+func (x *AddMemoryRsp) GetMsg() string {
+	if x != nil {
+		return x.Msg
+	}
+	return ""
+}
+
+func (x *AddMemoryRsp) GetMemoryId() uint64 {
+	if x != nil {
+		return x.MemoryId
+	}
+	return 0
+}
+
+type GetMemoryReq struct {
+	SeqId    uint32 `protobuf:"varint,1,opt,name=seq_id" json:"seq_id,omitempty"`
+	MemoryId uint64 `protobuf:"varint,2,opt,name=memory_id" json:"memory_id,omitempty"`
+	UserId   uint64 `protobuf:"varint,3,opt,name=user_id" json:"user_id,omitempty"`
+}
+
+func (x *GetMemoryReq) Reset() { *x = GetMemoryReq{} }
+
+func (x *GetMemoryReq) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *GetMemoryReq) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *GetMemoryReq) GetSeqId() uint32 {
+	if x != nil {
+		return x.SeqId
+	}
+	return 0
+}
+
+func (x *GetMemoryReq) GetMemoryId() uint64 {
+	if x != nil {
+		return x.MemoryId
+	}
+	return 0
+}
+
+func (x *GetMemoryReq) GetUserId() uint64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+type GetMemoryRsp struct {
+	Code   uint32  `protobuf:"varint,1,opt,name=code" json:"code,omitempty"`
+	Msg    string  `protobuf:"bytes,2,opt,name=msg" json:"msg,omitempty"`
+	Memory *Memory `protobuf:"bytes,3,opt,name=memory" json:"memory,omitempty"`
+}
+
+func (x *GetMemoryRsp) Reset() { *x = GetMemoryRsp{} }
+
+func (x *GetMemoryRsp) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *GetMemoryRsp) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *GetMemoryRsp) GetCode() uint32 {
+	if x != nil {
+		return x.Code
+	}
+	return 0
+}
+
+func (x *GetMemoryRsp) GetMsg() string {
+	if x != nil {
+		return x.Msg
+	}
+	return ""
+}
+
+func (x *GetMemoryRsp) GetMemory() *Memory {
+	if x != nil {
+		return x.Memory
+	}
+	return nil
+}
+
+type SearchMemoriesReq struct {
+	SeqId  uint32 `protobuf:"varint,1,opt,name=seq_id" json:"seq_id,omitempty"`
+	UserId uint64 `protobuf:"varint,2,opt,name=user_id" json:"user_id,omitempty"`
+	Query  string `protobuf:"bytes,3,opt,name=query" json:"query,omitempty"`
+	Limit  int32  `protobuf:"varint,4,opt,name=limit" json:"limit,omitempty"`
+}
+
+func (x *SearchMemoriesReq) Reset() { *x = SearchMemoriesReq{} }
+
+func (x *SearchMemoriesReq) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *SearchMemoriesReq) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *SearchMemoriesReq) GetSeqId() uint32 {
+	if x != nil {
+		return x.SeqId
+	}
+	return 0
+}
+
+func (x *SearchMemoriesReq) GetUserId() uint64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *SearchMemoriesReq) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *SearchMemoriesReq) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type SearchMemoriesRsp struct {
+	Code     uint32    `protobuf:"varint,1,opt,name=code" json:"code,omitempty"`
+	Msg      string    `protobuf:"bytes,2,opt,name=msg" json:"msg,omitempty"`
+	Memories []*Memory `protobuf:"bytes,3,rep,name=memories" json:"memories,omitempty"`
+}
+
+func (x *SearchMemoriesRsp) Reset() { *x = SearchMemoriesRsp{} }
+
+func (x *SearchMemoriesRsp) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *SearchMemoriesRsp) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *SearchMemoriesRsp) GetCode() uint32 {
+	if x != nil {
+		return x.Code
+	}
+	return 0
+}
+
+func (x *SearchMemoriesRsp) GetMsg() string {
+	if x != nil {
+		return x.Msg
+	}
+	return ""
+}
+
+func (x *SearchMemoriesRsp) GetMemories() []*Memory {
+	if x != nil {
+		return x.Memories
+	}
+	return nil
+}
+
+type DeleteMemoryReq struct {
+	SeqId    uint32 `protobuf:"varint,1,opt,name=seq_id" json:"seq_id,omitempty"`
+	MemoryId uint64 `protobuf:"varint,2,opt,name=memory_id" json:"memory_id,omitempty"`
+	UserId   uint64 `protobuf:"varint,3,opt,name=user_id" json:"user_id,omitempty"`
+	Reason   string `protobuf:"bytes,4,opt,name=reason" json:"reason,omitempty"`
+}
+
+func (x *DeleteMemoryReq) Reset() { *x = DeleteMemoryReq{} }
+
+func (x *DeleteMemoryReq) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *DeleteMemoryReq) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *DeleteMemoryReq) GetSeqId() uint32 {
+	if x != nil {
+		return x.SeqId
+	}
+	return 0
+}
+
+func (x *DeleteMemoryReq) GetMemoryId() uint64 {
+	if x != nil {
+		return x.MemoryId
+	}
+	return 0
+}
+
+func (x *DeleteMemoryReq) GetUserId() uint64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *DeleteMemoryReq) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type DeleteMemoryRsp struct {
+	Code uint32 `protobuf:"varint,1,opt,name=code" json:"code,omitempty"`
+	Msg  string `protobuf:"bytes,2,opt,name=msg" json:"msg,omitempty"`
+}
+
+func (x *DeleteMemoryRsp) Reset() { *x = DeleteMemoryRsp{} }
+
+func (x *DeleteMemoryRsp) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *DeleteMemoryRsp) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *DeleteMemoryRsp) GetCode() uint32 {
+	if x != nil {
+		return x.Code
+	}
+	return 0
+}
+
+func (x *DeleteMemoryRsp) GetMsg() string {
+	if x != nil {
+		return x.Msg
+	}
+	return ""
+}
+
+// 聊天记录管理
+type AddChatRecordReq struct {
+	SeqId         uint32 `protobuf:"varint,1,opt,name=seq_id" json:"seq_id,omitempty"`
+	SessionId     uint64 `protobuf:"varint,2,opt,name=session_id" json:"session_id,omitempty"`
+	UserId        uint64 `protobuf:"varint,3,opt,name=user_id" json:"user_id,omitempty"`
+	Message       string `protobuf:"bytes,4,opt,name=message" json:"message,omitempty"`
+	Response      string `protobuf:"bytes,5,opt,name=response" json:"response,omitempty"`
+	MessageType   string `protobuf:"bytes,6,opt,name=message_type" json:"message_type,omitempty"`
+	Context       string `protobuf:"bytes,7,opt,name=context" json:"context,omitempty"`
+	FunctionCalls string `protobuf:"bytes,8,opt,name=function_calls" json:"function_calls,omitempty"`
+	Metadata      string `protobuf:"bytes,9,opt,name=metadata" json:"metadata,omitempty"`
+}
+
+func (x *AddChatRecordReq) Reset() { *x = AddChatRecordReq{} }
+
+func (x *AddChatRecordReq) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *AddChatRecordReq) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *AddChatRecordReq) GetSeqId() uint32 {
+	if x != nil {
+		return x.SeqId
+	}
+	return 0
+}
+
+func (x *AddChatRecordReq) GetSessionId() uint64 {
+	if x != nil {
+		return x.SessionId
+	}
+	return 0
+}
+
+func (x *AddChatRecordReq) GetUserId() uint64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *AddChatRecordReq) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *AddChatRecordReq) GetResponse() string {
+	if x != nil {
+		return x.Response
+	}
+	return ""
+}
+
+func (x *AddChatRecordReq) GetMessageType() string {
+	if x != nil {
+		return x.MessageType
+	}
+	return ""
+}
+
+func (x *AddChatRecordReq) GetContext() string {
+	if x != nil {
+		return x.Context
+	}
+	return ""
+}
+
+func (x *AddChatRecordReq) GetFunctionCalls() string {
+	if x != nil {
+		return x.FunctionCalls
+	}
+	return ""
+}
+
+func (x *AddChatRecordReq) GetMetadata() string {
+	if x != nil {
+		return x.Metadata
+	}
+	return ""
+}
+
+type AddChatRecordRsp struct {
+	Code   uint32 `protobuf:"varint,1,opt,name=code" json:"code,omitempty"`
+	Msg    string `protobuf:"bytes,2,opt,name=msg" json:"msg,omitempty"`
+	ChatId uint64 `protobuf:"varint,3,opt,name=chat_id" json:"chat_id,omitempty"`
+}
+
+func (x *AddChatRecordRsp) Reset() { *x = AddChatRecordRsp{} }
+
+func (x *AddChatRecordRsp) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *AddChatRecordRsp) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *AddChatRecordRsp) GetCode() uint32 {
+	if x != nil {
+		return x.Code
+	}
+	return 0
+}
+
+func (x *AddChatRecordRsp) GetMsg() string {
+	if x != nil {
+		return x.Msg
+	}
+	return ""
+}
+
+func (x *AddChatRecordRsp) GetChatId() uint64 {
+	if x != nil {
+		return x.ChatId
+	}
+	return 0
+}
+
+type GetChatRecordsReq struct {
+	SeqId     uint32 `protobuf:"varint,1,opt,name=seq_id" json:"seq_id,omitempty"`
+	SessionId uint64 `protobuf:"varint,2,opt,name=session_id" json:"session_id,omitempty"`
+	Page      int32  `protobuf:"varint,3,opt,name=page" json:"page,omitempty"`
+	PageSize  int32  `protobuf:"varint,4,opt,name=page_size" json:"page_size,omitempty"`
+}
+
+func (x *GetChatRecordsReq) Reset() { *x = GetChatRecordsReq{} }
+
+func (x *GetChatRecordsReq) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *GetChatRecordsReq) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *GetChatRecordsReq) GetSeqId() uint32 {
+	if x != nil {
+		return x.SeqId
+	}
+	return 0
+}
+
+func (x *GetChatRecordsReq) GetSessionId() uint64 {
+	if x != nil {
+		return x.SessionId
+	}
+	return 0
+}
+
+func (x *GetChatRecordsReq) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *GetChatRecordsReq) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+type GetChatRecordsRsp struct {
+	Code     uint32        `protobuf:"varint,1,opt,name=code" json:"code,omitempty"`
+	Msg      string        `protobuf:"bytes,2,opt,name=msg" json:"msg,omitempty"`
+	Total    int64         `protobuf:"varint,3,opt,name=total" json:"total,omitempty"`
+	Page     int32         `protobuf:"varint,4,opt,name=page" json:"page,omitempty"`
+	PageSize int32         `protobuf:"varint,5,opt,name=page_size" json:"page_size,omitempty"`
+	Records  []*ChatRecord `protobuf:"bytes,6,rep,name=records" json:"records,omitempty"`
+}
+
+func (x *GetChatRecordsRsp) Reset() { *x = GetChatRecordsRsp{} }
+
+func (x *GetChatRecordsRsp) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *GetChatRecordsRsp) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *GetChatRecordsRsp) GetCode() uint32 {
+	if x != nil {
+		return x.Code
+	}
+	return 0
+}
+
+func (x *GetChatRecordsRsp) GetMsg() string {
+	if x != nil {
+		return x.Msg
+	}
+	return ""
+}
+
+func (x *GetChatRecordsRsp) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *GetChatRecordsRsp) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *GetChatRecordsRsp) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *GetChatRecordsRsp) GetRecords() []*ChatRecord {
+	if x != nil {
+		return x.Records
+	}
+	return nil
+}
+
 type RagService interface {
 	Test(ctx context.Context, req *TestReq) (res *TestRsp, err error)
 	Test2(ctx context.Context, req *Test2Req) (res *Test2Rsp, err error)
 	CreateUser(ctx context.Context, req *CreateUserReq) (res *CreateUserRsp, err error)
 	CreateSession(ctx context.Context, req *CreateSessionReq) (res *CreateSessionRsp, err error)
+	GetSession(ctx context.Context, req *GetSessionReq) (res *GetSessionRsp, err error)
 	EndSession(ctx context.Context, req *EndSessionReq) (res *EndSessionRsp, err error)
-	SendMessage(ctx context.Context, req *SendMessageReq) (res *SendMessageRsp, err error)
-	SendMessageStream(req *SendMessageReq, stream RagService_SendMessageStreamServer) (err error)
-	AddDocument(ctx context.Context, req *AddDocumentReq) (res *AddDocumentRsp, err error)
-	SearchDocument(ctx context.Context, req *SearchDocumentReq) (res *SearchDocumentRsp, err error)
 	GetSessionList(ctx context.Context, req *GetSessionListReq) (res *GetSessionListRsp, err error)
 	CleanInactiveSessions(ctx context.Context, req *CleanInactiveSessionsReq) (res *CleanInactiveSessionsRsp, err error)
-}
-
-type RagService_SendMessageStreamServer interface {
-	streaming.Stream
-	Send(*SendMessageRsp) error
+	SendMessage(ctx context.Context, req *SendMessageReq) (res *SendMessageRsp, err error)
+	AddDocument(ctx context.Context, req *AddDocumentReq) (res *AddDocumentRsp, err error)
+	DeleteDocument(ctx context.Context, req *DeleteDocumentReq) (res *DeleteDocumentRsp, err error)
+	SearchDocument(ctx context.Context, req *SearchDocumentReq) (res *SearchDocumentRsp, err error)
+	ListDocument(ctx context.Context, req *ListDocumentReq) (res *ListDocumentRsp, err error)
+	AddMemory(ctx context.Context, req *AddMemoryReq) (res *AddMemoryRsp, err error)
+	GetMemory(ctx context.Context, req *GetMemoryReq) (res *GetMemoryRsp, err error)
+	SearchMemories(ctx context.Context, req *SearchMemoriesReq) (res *SearchMemoriesRsp, err error)
+	DeleteMemory(ctx context.Context, req *DeleteMemoryReq) (res *DeleteMemoryRsp, err error)
+	AddChatRecord(ctx context.Context, req *AddChatRecordReq) (res *AddChatRecordRsp, err error)
+	GetChatRecords(ctx context.Context, req *GetChatRecordsReq) (res *GetChatRecordsRsp, err error)
 }

@@ -5,7 +5,6 @@ package ragservice
 import (
 	"context"
 	"errors"
-	"fmt"
 	client "github.com/cloudwego/kitex/client"
 	kitex "github.com/cloudwego/kitex/pkg/serviceinfo"
 	streaming "github.com/cloudwego/kitex/pkg/streaming"
@@ -44,38 +43,17 @@ var serviceMethods = map[string]kitex.MethodInfo{
 		false,
 		kitex.WithStreamingMode(kitex.StreamingUnary),
 	),
+	"GetSession": kitex.NewMethodInfo(
+		getSessionHandler,
+		newGetSessionArgs,
+		newGetSessionResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingUnary),
+	),
 	"EndSession": kitex.NewMethodInfo(
 		endSessionHandler,
 		newEndSessionArgs,
 		newEndSessionResult,
-		false,
-		kitex.WithStreamingMode(kitex.StreamingUnary),
-	),
-	"SendMessage": kitex.NewMethodInfo(
-		sendMessageHandler,
-		newSendMessageArgs,
-		newSendMessageResult,
-		false,
-		kitex.WithStreamingMode(kitex.StreamingUnary),
-	),
-	"SendMessageStream": kitex.NewMethodInfo(
-		sendMessageStreamHandler,
-		newSendMessageStreamArgs,
-		newSendMessageStreamResult,
-		false,
-		kitex.WithStreamingMode(kitex.StreamingServer),
-	),
-	"AddDocument": kitex.NewMethodInfo(
-		addDocumentHandler,
-		newAddDocumentArgs,
-		newAddDocumentResult,
-		false,
-		kitex.WithStreamingMode(kitex.StreamingUnary),
-	),
-	"SearchDocument": kitex.NewMethodInfo(
-		searchDocumentHandler,
-		newSearchDocumentArgs,
-		newSearchDocumentResult,
 		false,
 		kitex.WithStreamingMode(kitex.StreamingUnary),
 	),
@@ -90,6 +68,83 @@ var serviceMethods = map[string]kitex.MethodInfo{
 		cleanInactiveSessionsHandler,
 		newCleanInactiveSessionsArgs,
 		newCleanInactiveSessionsResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingUnary),
+	),
+	"SendMessage": kitex.NewMethodInfo(
+		sendMessageHandler,
+		newSendMessageArgs,
+		newSendMessageResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingUnary),
+	),
+	"AddDocument": kitex.NewMethodInfo(
+		addDocumentHandler,
+		newAddDocumentArgs,
+		newAddDocumentResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingUnary),
+	),
+	"DeleteDocument": kitex.NewMethodInfo(
+		deleteDocumentHandler,
+		newDeleteDocumentArgs,
+		newDeleteDocumentResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingUnary),
+	),
+	"SearchDocument": kitex.NewMethodInfo(
+		searchDocumentHandler,
+		newSearchDocumentArgs,
+		newSearchDocumentResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingUnary),
+	),
+	"ListDocument": kitex.NewMethodInfo(
+		listDocumentHandler,
+		newListDocumentArgs,
+		newListDocumentResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingUnary),
+	),
+	"AddMemory": kitex.NewMethodInfo(
+		addMemoryHandler,
+		newAddMemoryArgs,
+		newAddMemoryResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingUnary),
+	),
+	"GetMemory": kitex.NewMethodInfo(
+		getMemoryHandler,
+		newGetMemoryArgs,
+		newGetMemoryResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingUnary),
+	),
+	"SearchMemories": kitex.NewMethodInfo(
+		searchMemoriesHandler,
+		newSearchMemoriesArgs,
+		newSearchMemoriesResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingUnary),
+	),
+	"DeleteMemory": kitex.NewMethodInfo(
+		deleteMemoryHandler,
+		newDeleteMemoryArgs,
+		newDeleteMemoryResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingUnary),
+	),
+	"AddChatRecord": kitex.NewMethodInfo(
+		addChatRecordHandler,
+		newAddChatRecordArgs,
+		newAddChatRecordResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingUnary),
+	),
+	"GetChatRecords": kitex.NewMethodInfo(
+		getChatRecordsHandler,
+		newGetChatRecordsArgs,
+		newGetChatRecordsResult,
 		false,
 		kitex.WithStreamingMode(kitex.StreamingUnary),
 	),
@@ -118,7 +173,7 @@ func serviceInfoForClient() *kitex.ServiceInfo {
 
 // NewServiceInfo creates a new ServiceInfo containing all methods
 func NewServiceInfo() *kitex.ServiceInfo {
-	return newServiceInfo(true, true, true)
+	return newServiceInfo(false, true, true)
 }
 
 // NewServiceInfo creates a new ServiceInfo containing non-streaming methods
@@ -603,6 +658,117 @@ func (p *CreateSessionResult) GetResult() interface{} {
 	return p.Success
 }
 
+func getSessionHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	switch s := arg.(type) {
+	case *streaming.Args:
+		st := s.Stream
+		req := new(rag_svr.GetSessionReq)
+		if err := st.RecvMsg(req); err != nil {
+			return err
+		}
+		resp, err := handler.(rag_svr.RagService).GetSession(ctx, req)
+		if err != nil {
+			return err
+		}
+		return st.SendMsg(resp)
+	case *GetSessionArgs:
+		success, err := handler.(rag_svr.RagService).GetSession(ctx, s.Req)
+		if err != nil {
+			return err
+		}
+		realResult := result.(*GetSessionResult)
+		realResult.Success = success
+		return nil
+	default:
+		return errInvalidMessageType
+	}
+}
+func newGetSessionArgs() interface{} {
+	return &GetSessionArgs{}
+}
+
+func newGetSessionResult() interface{} {
+	return &GetSessionResult{}
+}
+
+type GetSessionArgs struct {
+	Req *rag_svr.GetSessionReq
+}
+
+func (p *GetSessionArgs) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetReq() {
+		return out, nil
+	}
+	return proto.Marshal(p.Req)
+}
+
+func (p *GetSessionArgs) Unmarshal(in []byte) error {
+	msg := new(rag_svr.GetSessionReq)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Req = msg
+	return nil
+}
+
+var GetSessionArgs_Req_DEFAULT *rag_svr.GetSessionReq
+
+func (p *GetSessionArgs) GetReq() *rag_svr.GetSessionReq {
+	if !p.IsSetReq() {
+		return GetSessionArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+
+func (p *GetSessionArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *GetSessionArgs) GetFirstArgument() interface{} {
+	return p.Req
+}
+
+type GetSessionResult struct {
+	Success *rag_svr.GetSessionRsp
+}
+
+var GetSessionResult_Success_DEFAULT *rag_svr.GetSessionRsp
+
+func (p *GetSessionResult) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetSuccess() {
+		return out, nil
+	}
+	return proto.Marshal(p.Success)
+}
+
+func (p *GetSessionResult) Unmarshal(in []byte) error {
+	msg := new(rag_svr.GetSessionRsp)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Success = msg
+	return nil
+}
+
+func (p *GetSessionResult) GetSuccess() *rag_svr.GetSessionRsp {
+	if !p.IsSetSuccess() {
+		return GetSessionResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+func (p *GetSessionResult) SetSuccess(x interface{}) {
+	p.Success = x.(*rag_svr.GetSessionRsp)
+}
+
+func (p *GetSessionResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *GetSessionResult) GetResult() interface{} {
+	return p.Success
+}
+
 func endSessionHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
 	switch s := arg.(type) {
 	case *streaming.Args:
@@ -711,463 +877,6 @@ func (p *EndSessionResult) IsSetSuccess() bool {
 }
 
 func (p *EndSessionResult) GetResult() interface{} {
-	return p.Success
-}
-
-func sendMessageHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
-	switch s := arg.(type) {
-	case *streaming.Args:
-		st := s.Stream
-		req := new(rag_svr.SendMessageReq)
-		if err := st.RecvMsg(req); err != nil {
-			return err
-		}
-		resp, err := handler.(rag_svr.RagService).SendMessage(ctx, req)
-		if err != nil {
-			return err
-		}
-		return st.SendMsg(resp)
-	case *SendMessageArgs:
-		success, err := handler.(rag_svr.RagService).SendMessage(ctx, s.Req)
-		if err != nil {
-			return err
-		}
-		realResult := result.(*SendMessageResult)
-		realResult.Success = success
-		return nil
-	default:
-		return errInvalidMessageType
-	}
-}
-func newSendMessageArgs() interface{} {
-	return &SendMessageArgs{}
-}
-
-func newSendMessageResult() interface{} {
-	return &SendMessageResult{}
-}
-
-type SendMessageArgs struct {
-	Req *rag_svr.SendMessageReq
-}
-
-func (p *SendMessageArgs) Marshal(out []byte) ([]byte, error) {
-	if !p.IsSetReq() {
-		return out, nil
-	}
-	return proto.Marshal(p.Req)
-}
-
-func (p *SendMessageArgs) Unmarshal(in []byte) error {
-	msg := new(rag_svr.SendMessageReq)
-	if err := proto.Unmarshal(in, msg); err != nil {
-		return err
-	}
-	p.Req = msg
-	return nil
-}
-
-var SendMessageArgs_Req_DEFAULT *rag_svr.SendMessageReq
-
-func (p *SendMessageArgs) GetReq() *rag_svr.SendMessageReq {
-	if !p.IsSetReq() {
-		return SendMessageArgs_Req_DEFAULT
-	}
-	return p.Req
-}
-
-func (p *SendMessageArgs) IsSetReq() bool {
-	return p.Req != nil
-}
-
-func (p *SendMessageArgs) GetFirstArgument() interface{} {
-	return p.Req
-}
-
-type SendMessageResult struct {
-	Success *rag_svr.SendMessageRsp
-}
-
-var SendMessageResult_Success_DEFAULT *rag_svr.SendMessageRsp
-
-func (p *SendMessageResult) Marshal(out []byte) ([]byte, error) {
-	if !p.IsSetSuccess() {
-		return out, nil
-	}
-	return proto.Marshal(p.Success)
-}
-
-func (p *SendMessageResult) Unmarshal(in []byte) error {
-	msg := new(rag_svr.SendMessageRsp)
-	if err := proto.Unmarshal(in, msg); err != nil {
-		return err
-	}
-	p.Success = msg
-	return nil
-}
-
-func (p *SendMessageResult) GetSuccess() *rag_svr.SendMessageRsp {
-	if !p.IsSetSuccess() {
-		return SendMessageResult_Success_DEFAULT
-	}
-	return p.Success
-}
-
-func (p *SendMessageResult) SetSuccess(x interface{}) {
-	p.Success = x.(*rag_svr.SendMessageRsp)
-}
-
-func (p *SendMessageResult) IsSetSuccess() bool {
-	return p.Success != nil
-}
-
-func (p *SendMessageResult) GetResult() interface{} {
-	return p.Success
-}
-
-func sendMessageStreamHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
-	streamingArgs, ok := arg.(*streaming.Args)
-	if !ok {
-		return errInvalidMessageType
-	}
-	st := streamingArgs.Stream
-	stream := &ragServiceSendMessageStreamServer{st}
-	req := new(rag_svr.SendMessageReq)
-	if err := st.RecvMsg(req); err != nil {
-		return err
-	}
-	return handler.(rag_svr.RagService).SendMessageStream(req, stream)
-}
-
-type ragServiceSendMessageStreamClient struct {
-	streaming.Stream
-}
-
-func (x *ragServiceSendMessageStreamClient) DoFinish(err error) {
-	if finisher, ok := x.Stream.(streaming.WithDoFinish); ok {
-		finisher.DoFinish(err)
-	} else {
-		panic(fmt.Sprintf("streaming.WithDoFinish is not implemented by %T", x.Stream))
-	}
-}
-func (x *ragServiceSendMessageStreamClient) Recv() (*rag_svr.SendMessageRsp, error) {
-	m := new(rag_svr.SendMessageRsp)
-	return m, x.Stream.RecvMsg(m)
-}
-
-type ragServiceSendMessageStreamServer struct {
-	streaming.Stream
-}
-
-func (x *ragServiceSendMessageStreamServer) Send(m *rag_svr.SendMessageRsp) error {
-	return x.Stream.SendMsg(m)
-}
-
-func newSendMessageStreamArgs() interface{} {
-	return &SendMessageStreamArgs{}
-}
-
-func newSendMessageStreamResult() interface{} {
-	return &SendMessageStreamResult{}
-}
-
-type SendMessageStreamArgs struct {
-	Req *rag_svr.SendMessageReq
-}
-
-func (p *SendMessageStreamArgs) Marshal(out []byte) ([]byte, error) {
-	if !p.IsSetReq() {
-		return out, nil
-	}
-	return proto.Marshal(p.Req)
-}
-
-func (p *SendMessageStreamArgs) Unmarshal(in []byte) error {
-	msg := new(rag_svr.SendMessageReq)
-	if err := proto.Unmarshal(in, msg); err != nil {
-		return err
-	}
-	p.Req = msg
-	return nil
-}
-
-var SendMessageStreamArgs_Req_DEFAULT *rag_svr.SendMessageReq
-
-func (p *SendMessageStreamArgs) GetReq() *rag_svr.SendMessageReq {
-	if !p.IsSetReq() {
-		return SendMessageStreamArgs_Req_DEFAULT
-	}
-	return p.Req
-}
-
-func (p *SendMessageStreamArgs) IsSetReq() bool {
-	return p.Req != nil
-}
-
-func (p *SendMessageStreamArgs) GetFirstArgument() interface{} {
-	return p.Req
-}
-
-type SendMessageStreamResult struct {
-	Success *rag_svr.SendMessageRsp
-}
-
-var SendMessageStreamResult_Success_DEFAULT *rag_svr.SendMessageRsp
-
-func (p *SendMessageStreamResult) Marshal(out []byte) ([]byte, error) {
-	if !p.IsSetSuccess() {
-		return out, nil
-	}
-	return proto.Marshal(p.Success)
-}
-
-func (p *SendMessageStreamResult) Unmarshal(in []byte) error {
-	msg := new(rag_svr.SendMessageRsp)
-	if err := proto.Unmarshal(in, msg); err != nil {
-		return err
-	}
-	p.Success = msg
-	return nil
-}
-
-func (p *SendMessageStreamResult) GetSuccess() *rag_svr.SendMessageRsp {
-	if !p.IsSetSuccess() {
-		return SendMessageStreamResult_Success_DEFAULT
-	}
-	return p.Success
-}
-
-func (p *SendMessageStreamResult) SetSuccess(x interface{}) {
-	p.Success = x.(*rag_svr.SendMessageRsp)
-}
-
-func (p *SendMessageStreamResult) IsSetSuccess() bool {
-	return p.Success != nil
-}
-
-func (p *SendMessageStreamResult) GetResult() interface{} {
-	return p.Success
-}
-
-func addDocumentHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
-	switch s := arg.(type) {
-	case *streaming.Args:
-		st := s.Stream
-		req := new(rag_svr.AddDocumentReq)
-		if err := st.RecvMsg(req); err != nil {
-			return err
-		}
-		resp, err := handler.(rag_svr.RagService).AddDocument(ctx, req)
-		if err != nil {
-			return err
-		}
-		return st.SendMsg(resp)
-	case *AddDocumentArgs:
-		success, err := handler.(rag_svr.RagService).AddDocument(ctx, s.Req)
-		if err != nil {
-			return err
-		}
-		realResult := result.(*AddDocumentResult)
-		realResult.Success = success
-		return nil
-	default:
-		return errInvalidMessageType
-	}
-}
-func newAddDocumentArgs() interface{} {
-	return &AddDocumentArgs{}
-}
-
-func newAddDocumentResult() interface{} {
-	return &AddDocumentResult{}
-}
-
-type AddDocumentArgs struct {
-	Req *rag_svr.AddDocumentReq
-}
-
-func (p *AddDocumentArgs) Marshal(out []byte) ([]byte, error) {
-	if !p.IsSetReq() {
-		return out, nil
-	}
-	return proto.Marshal(p.Req)
-}
-
-func (p *AddDocumentArgs) Unmarshal(in []byte) error {
-	msg := new(rag_svr.AddDocumentReq)
-	if err := proto.Unmarshal(in, msg); err != nil {
-		return err
-	}
-	p.Req = msg
-	return nil
-}
-
-var AddDocumentArgs_Req_DEFAULT *rag_svr.AddDocumentReq
-
-func (p *AddDocumentArgs) GetReq() *rag_svr.AddDocumentReq {
-	if !p.IsSetReq() {
-		return AddDocumentArgs_Req_DEFAULT
-	}
-	return p.Req
-}
-
-func (p *AddDocumentArgs) IsSetReq() bool {
-	return p.Req != nil
-}
-
-func (p *AddDocumentArgs) GetFirstArgument() interface{} {
-	return p.Req
-}
-
-type AddDocumentResult struct {
-	Success *rag_svr.AddDocumentRsp
-}
-
-var AddDocumentResult_Success_DEFAULT *rag_svr.AddDocumentRsp
-
-func (p *AddDocumentResult) Marshal(out []byte) ([]byte, error) {
-	if !p.IsSetSuccess() {
-		return out, nil
-	}
-	return proto.Marshal(p.Success)
-}
-
-func (p *AddDocumentResult) Unmarshal(in []byte) error {
-	msg := new(rag_svr.AddDocumentRsp)
-	if err := proto.Unmarshal(in, msg); err != nil {
-		return err
-	}
-	p.Success = msg
-	return nil
-}
-
-func (p *AddDocumentResult) GetSuccess() *rag_svr.AddDocumentRsp {
-	if !p.IsSetSuccess() {
-		return AddDocumentResult_Success_DEFAULT
-	}
-	return p.Success
-}
-
-func (p *AddDocumentResult) SetSuccess(x interface{}) {
-	p.Success = x.(*rag_svr.AddDocumentRsp)
-}
-
-func (p *AddDocumentResult) IsSetSuccess() bool {
-	return p.Success != nil
-}
-
-func (p *AddDocumentResult) GetResult() interface{} {
-	return p.Success
-}
-
-func searchDocumentHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
-	switch s := arg.(type) {
-	case *streaming.Args:
-		st := s.Stream
-		req := new(rag_svr.SearchDocumentReq)
-		if err := st.RecvMsg(req); err != nil {
-			return err
-		}
-		resp, err := handler.(rag_svr.RagService).SearchDocument(ctx, req)
-		if err != nil {
-			return err
-		}
-		return st.SendMsg(resp)
-	case *SearchDocumentArgs:
-		success, err := handler.(rag_svr.RagService).SearchDocument(ctx, s.Req)
-		if err != nil {
-			return err
-		}
-		realResult := result.(*SearchDocumentResult)
-		realResult.Success = success
-		return nil
-	default:
-		return errInvalidMessageType
-	}
-}
-func newSearchDocumentArgs() interface{} {
-	return &SearchDocumentArgs{}
-}
-
-func newSearchDocumentResult() interface{} {
-	return &SearchDocumentResult{}
-}
-
-type SearchDocumentArgs struct {
-	Req *rag_svr.SearchDocumentReq
-}
-
-func (p *SearchDocumentArgs) Marshal(out []byte) ([]byte, error) {
-	if !p.IsSetReq() {
-		return out, nil
-	}
-	return proto.Marshal(p.Req)
-}
-
-func (p *SearchDocumentArgs) Unmarshal(in []byte) error {
-	msg := new(rag_svr.SearchDocumentReq)
-	if err := proto.Unmarshal(in, msg); err != nil {
-		return err
-	}
-	p.Req = msg
-	return nil
-}
-
-var SearchDocumentArgs_Req_DEFAULT *rag_svr.SearchDocumentReq
-
-func (p *SearchDocumentArgs) GetReq() *rag_svr.SearchDocumentReq {
-	if !p.IsSetReq() {
-		return SearchDocumentArgs_Req_DEFAULT
-	}
-	return p.Req
-}
-
-func (p *SearchDocumentArgs) IsSetReq() bool {
-	return p.Req != nil
-}
-
-func (p *SearchDocumentArgs) GetFirstArgument() interface{} {
-	return p.Req
-}
-
-type SearchDocumentResult struct {
-	Success *rag_svr.SearchDocumentRsp
-}
-
-var SearchDocumentResult_Success_DEFAULT *rag_svr.SearchDocumentRsp
-
-func (p *SearchDocumentResult) Marshal(out []byte) ([]byte, error) {
-	if !p.IsSetSuccess() {
-		return out, nil
-	}
-	return proto.Marshal(p.Success)
-}
-
-func (p *SearchDocumentResult) Unmarshal(in []byte) error {
-	msg := new(rag_svr.SearchDocumentRsp)
-	if err := proto.Unmarshal(in, msg); err != nil {
-		return err
-	}
-	p.Success = msg
-	return nil
-}
-
-func (p *SearchDocumentResult) GetSuccess() *rag_svr.SearchDocumentRsp {
-	if !p.IsSetSuccess() {
-		return SearchDocumentResult_Success_DEFAULT
-	}
-	return p.Success
-}
-
-func (p *SearchDocumentResult) SetSuccess(x interface{}) {
-	p.Success = x.(*rag_svr.SearchDocumentRsp)
-}
-
-func (p *SearchDocumentResult) IsSetSuccess() bool {
-	return p.Success != nil
-}
-
-func (p *SearchDocumentResult) GetResult() interface{} {
 	return p.Success
 }
 
@@ -1393,6 +1102,1227 @@ func (p *CleanInactiveSessionsResult) GetResult() interface{} {
 	return p.Success
 }
 
+func sendMessageHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	switch s := arg.(type) {
+	case *streaming.Args:
+		st := s.Stream
+		req := new(rag_svr.SendMessageReq)
+		if err := st.RecvMsg(req); err != nil {
+			return err
+		}
+		resp, err := handler.(rag_svr.RagService).SendMessage(ctx, req)
+		if err != nil {
+			return err
+		}
+		return st.SendMsg(resp)
+	case *SendMessageArgs:
+		success, err := handler.(rag_svr.RagService).SendMessage(ctx, s.Req)
+		if err != nil {
+			return err
+		}
+		realResult := result.(*SendMessageResult)
+		realResult.Success = success
+		return nil
+	default:
+		return errInvalidMessageType
+	}
+}
+func newSendMessageArgs() interface{} {
+	return &SendMessageArgs{}
+}
+
+func newSendMessageResult() interface{} {
+	return &SendMessageResult{}
+}
+
+type SendMessageArgs struct {
+	Req *rag_svr.SendMessageReq
+}
+
+func (p *SendMessageArgs) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetReq() {
+		return out, nil
+	}
+	return proto.Marshal(p.Req)
+}
+
+func (p *SendMessageArgs) Unmarshal(in []byte) error {
+	msg := new(rag_svr.SendMessageReq)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Req = msg
+	return nil
+}
+
+var SendMessageArgs_Req_DEFAULT *rag_svr.SendMessageReq
+
+func (p *SendMessageArgs) GetReq() *rag_svr.SendMessageReq {
+	if !p.IsSetReq() {
+		return SendMessageArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+
+func (p *SendMessageArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *SendMessageArgs) GetFirstArgument() interface{} {
+	return p.Req
+}
+
+type SendMessageResult struct {
+	Success *rag_svr.SendMessageRsp
+}
+
+var SendMessageResult_Success_DEFAULT *rag_svr.SendMessageRsp
+
+func (p *SendMessageResult) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetSuccess() {
+		return out, nil
+	}
+	return proto.Marshal(p.Success)
+}
+
+func (p *SendMessageResult) Unmarshal(in []byte) error {
+	msg := new(rag_svr.SendMessageRsp)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Success = msg
+	return nil
+}
+
+func (p *SendMessageResult) GetSuccess() *rag_svr.SendMessageRsp {
+	if !p.IsSetSuccess() {
+		return SendMessageResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+func (p *SendMessageResult) SetSuccess(x interface{}) {
+	p.Success = x.(*rag_svr.SendMessageRsp)
+}
+
+func (p *SendMessageResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *SendMessageResult) GetResult() interface{} {
+	return p.Success
+}
+
+func addDocumentHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	switch s := arg.(type) {
+	case *streaming.Args:
+		st := s.Stream
+		req := new(rag_svr.AddDocumentReq)
+		if err := st.RecvMsg(req); err != nil {
+			return err
+		}
+		resp, err := handler.(rag_svr.RagService).AddDocument(ctx, req)
+		if err != nil {
+			return err
+		}
+		return st.SendMsg(resp)
+	case *AddDocumentArgs:
+		success, err := handler.(rag_svr.RagService).AddDocument(ctx, s.Req)
+		if err != nil {
+			return err
+		}
+		realResult := result.(*AddDocumentResult)
+		realResult.Success = success
+		return nil
+	default:
+		return errInvalidMessageType
+	}
+}
+func newAddDocumentArgs() interface{} {
+	return &AddDocumentArgs{}
+}
+
+func newAddDocumentResult() interface{} {
+	return &AddDocumentResult{}
+}
+
+type AddDocumentArgs struct {
+	Req *rag_svr.AddDocumentReq
+}
+
+func (p *AddDocumentArgs) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetReq() {
+		return out, nil
+	}
+	return proto.Marshal(p.Req)
+}
+
+func (p *AddDocumentArgs) Unmarshal(in []byte) error {
+	msg := new(rag_svr.AddDocumentReq)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Req = msg
+	return nil
+}
+
+var AddDocumentArgs_Req_DEFAULT *rag_svr.AddDocumentReq
+
+func (p *AddDocumentArgs) GetReq() *rag_svr.AddDocumentReq {
+	if !p.IsSetReq() {
+		return AddDocumentArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+
+func (p *AddDocumentArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *AddDocumentArgs) GetFirstArgument() interface{} {
+	return p.Req
+}
+
+type AddDocumentResult struct {
+	Success *rag_svr.AddDocumentRsp
+}
+
+var AddDocumentResult_Success_DEFAULT *rag_svr.AddDocumentRsp
+
+func (p *AddDocumentResult) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetSuccess() {
+		return out, nil
+	}
+	return proto.Marshal(p.Success)
+}
+
+func (p *AddDocumentResult) Unmarshal(in []byte) error {
+	msg := new(rag_svr.AddDocumentRsp)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Success = msg
+	return nil
+}
+
+func (p *AddDocumentResult) GetSuccess() *rag_svr.AddDocumentRsp {
+	if !p.IsSetSuccess() {
+		return AddDocumentResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+func (p *AddDocumentResult) SetSuccess(x interface{}) {
+	p.Success = x.(*rag_svr.AddDocumentRsp)
+}
+
+func (p *AddDocumentResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *AddDocumentResult) GetResult() interface{} {
+	return p.Success
+}
+
+func deleteDocumentHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	switch s := arg.(type) {
+	case *streaming.Args:
+		st := s.Stream
+		req := new(rag_svr.DeleteDocumentReq)
+		if err := st.RecvMsg(req); err != nil {
+			return err
+		}
+		resp, err := handler.(rag_svr.RagService).DeleteDocument(ctx, req)
+		if err != nil {
+			return err
+		}
+		return st.SendMsg(resp)
+	case *DeleteDocumentArgs:
+		success, err := handler.(rag_svr.RagService).DeleteDocument(ctx, s.Req)
+		if err != nil {
+			return err
+		}
+		realResult := result.(*DeleteDocumentResult)
+		realResult.Success = success
+		return nil
+	default:
+		return errInvalidMessageType
+	}
+}
+func newDeleteDocumentArgs() interface{} {
+	return &DeleteDocumentArgs{}
+}
+
+func newDeleteDocumentResult() interface{} {
+	return &DeleteDocumentResult{}
+}
+
+type DeleteDocumentArgs struct {
+	Req *rag_svr.DeleteDocumentReq
+}
+
+func (p *DeleteDocumentArgs) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetReq() {
+		return out, nil
+	}
+	return proto.Marshal(p.Req)
+}
+
+func (p *DeleteDocumentArgs) Unmarshal(in []byte) error {
+	msg := new(rag_svr.DeleteDocumentReq)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Req = msg
+	return nil
+}
+
+var DeleteDocumentArgs_Req_DEFAULT *rag_svr.DeleteDocumentReq
+
+func (p *DeleteDocumentArgs) GetReq() *rag_svr.DeleteDocumentReq {
+	if !p.IsSetReq() {
+		return DeleteDocumentArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+
+func (p *DeleteDocumentArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *DeleteDocumentArgs) GetFirstArgument() interface{} {
+	return p.Req
+}
+
+type DeleteDocumentResult struct {
+	Success *rag_svr.DeleteDocumentRsp
+}
+
+var DeleteDocumentResult_Success_DEFAULT *rag_svr.DeleteDocumentRsp
+
+func (p *DeleteDocumentResult) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetSuccess() {
+		return out, nil
+	}
+	return proto.Marshal(p.Success)
+}
+
+func (p *DeleteDocumentResult) Unmarshal(in []byte) error {
+	msg := new(rag_svr.DeleteDocumentRsp)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Success = msg
+	return nil
+}
+
+func (p *DeleteDocumentResult) GetSuccess() *rag_svr.DeleteDocumentRsp {
+	if !p.IsSetSuccess() {
+		return DeleteDocumentResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+func (p *DeleteDocumentResult) SetSuccess(x interface{}) {
+	p.Success = x.(*rag_svr.DeleteDocumentRsp)
+}
+
+func (p *DeleteDocumentResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *DeleteDocumentResult) GetResult() interface{} {
+	return p.Success
+}
+
+func searchDocumentHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	switch s := arg.(type) {
+	case *streaming.Args:
+		st := s.Stream
+		req := new(rag_svr.SearchDocumentReq)
+		if err := st.RecvMsg(req); err != nil {
+			return err
+		}
+		resp, err := handler.(rag_svr.RagService).SearchDocument(ctx, req)
+		if err != nil {
+			return err
+		}
+		return st.SendMsg(resp)
+	case *SearchDocumentArgs:
+		success, err := handler.(rag_svr.RagService).SearchDocument(ctx, s.Req)
+		if err != nil {
+			return err
+		}
+		realResult := result.(*SearchDocumentResult)
+		realResult.Success = success
+		return nil
+	default:
+		return errInvalidMessageType
+	}
+}
+func newSearchDocumentArgs() interface{} {
+	return &SearchDocumentArgs{}
+}
+
+func newSearchDocumentResult() interface{} {
+	return &SearchDocumentResult{}
+}
+
+type SearchDocumentArgs struct {
+	Req *rag_svr.SearchDocumentReq
+}
+
+func (p *SearchDocumentArgs) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetReq() {
+		return out, nil
+	}
+	return proto.Marshal(p.Req)
+}
+
+func (p *SearchDocumentArgs) Unmarshal(in []byte) error {
+	msg := new(rag_svr.SearchDocumentReq)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Req = msg
+	return nil
+}
+
+var SearchDocumentArgs_Req_DEFAULT *rag_svr.SearchDocumentReq
+
+func (p *SearchDocumentArgs) GetReq() *rag_svr.SearchDocumentReq {
+	if !p.IsSetReq() {
+		return SearchDocumentArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+
+func (p *SearchDocumentArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *SearchDocumentArgs) GetFirstArgument() interface{} {
+	return p.Req
+}
+
+type SearchDocumentResult struct {
+	Success *rag_svr.SearchDocumentRsp
+}
+
+var SearchDocumentResult_Success_DEFAULT *rag_svr.SearchDocumentRsp
+
+func (p *SearchDocumentResult) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetSuccess() {
+		return out, nil
+	}
+	return proto.Marshal(p.Success)
+}
+
+func (p *SearchDocumentResult) Unmarshal(in []byte) error {
+	msg := new(rag_svr.SearchDocumentRsp)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Success = msg
+	return nil
+}
+
+func (p *SearchDocumentResult) GetSuccess() *rag_svr.SearchDocumentRsp {
+	if !p.IsSetSuccess() {
+		return SearchDocumentResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+func (p *SearchDocumentResult) SetSuccess(x interface{}) {
+	p.Success = x.(*rag_svr.SearchDocumentRsp)
+}
+
+func (p *SearchDocumentResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *SearchDocumentResult) GetResult() interface{} {
+	return p.Success
+}
+
+func listDocumentHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	switch s := arg.(type) {
+	case *streaming.Args:
+		st := s.Stream
+		req := new(rag_svr.ListDocumentReq)
+		if err := st.RecvMsg(req); err != nil {
+			return err
+		}
+		resp, err := handler.(rag_svr.RagService).ListDocument(ctx, req)
+		if err != nil {
+			return err
+		}
+		return st.SendMsg(resp)
+	case *ListDocumentArgs:
+		success, err := handler.(rag_svr.RagService).ListDocument(ctx, s.Req)
+		if err != nil {
+			return err
+		}
+		realResult := result.(*ListDocumentResult)
+		realResult.Success = success
+		return nil
+	default:
+		return errInvalidMessageType
+	}
+}
+func newListDocumentArgs() interface{} {
+	return &ListDocumentArgs{}
+}
+
+func newListDocumentResult() interface{} {
+	return &ListDocumentResult{}
+}
+
+type ListDocumentArgs struct {
+	Req *rag_svr.ListDocumentReq
+}
+
+func (p *ListDocumentArgs) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetReq() {
+		return out, nil
+	}
+	return proto.Marshal(p.Req)
+}
+
+func (p *ListDocumentArgs) Unmarshal(in []byte) error {
+	msg := new(rag_svr.ListDocumentReq)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Req = msg
+	return nil
+}
+
+var ListDocumentArgs_Req_DEFAULT *rag_svr.ListDocumentReq
+
+func (p *ListDocumentArgs) GetReq() *rag_svr.ListDocumentReq {
+	if !p.IsSetReq() {
+		return ListDocumentArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+
+func (p *ListDocumentArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *ListDocumentArgs) GetFirstArgument() interface{} {
+	return p.Req
+}
+
+type ListDocumentResult struct {
+	Success *rag_svr.ListDocumentRsp
+}
+
+var ListDocumentResult_Success_DEFAULT *rag_svr.ListDocumentRsp
+
+func (p *ListDocumentResult) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetSuccess() {
+		return out, nil
+	}
+	return proto.Marshal(p.Success)
+}
+
+func (p *ListDocumentResult) Unmarshal(in []byte) error {
+	msg := new(rag_svr.ListDocumentRsp)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Success = msg
+	return nil
+}
+
+func (p *ListDocumentResult) GetSuccess() *rag_svr.ListDocumentRsp {
+	if !p.IsSetSuccess() {
+		return ListDocumentResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+func (p *ListDocumentResult) SetSuccess(x interface{}) {
+	p.Success = x.(*rag_svr.ListDocumentRsp)
+}
+
+func (p *ListDocumentResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *ListDocumentResult) GetResult() interface{} {
+	return p.Success
+}
+
+func addMemoryHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	switch s := arg.(type) {
+	case *streaming.Args:
+		st := s.Stream
+		req := new(rag_svr.AddMemoryReq)
+		if err := st.RecvMsg(req); err != nil {
+			return err
+		}
+		resp, err := handler.(rag_svr.RagService).AddMemory(ctx, req)
+		if err != nil {
+			return err
+		}
+		return st.SendMsg(resp)
+	case *AddMemoryArgs:
+		success, err := handler.(rag_svr.RagService).AddMemory(ctx, s.Req)
+		if err != nil {
+			return err
+		}
+		realResult := result.(*AddMemoryResult)
+		realResult.Success = success
+		return nil
+	default:
+		return errInvalidMessageType
+	}
+}
+func newAddMemoryArgs() interface{} {
+	return &AddMemoryArgs{}
+}
+
+func newAddMemoryResult() interface{} {
+	return &AddMemoryResult{}
+}
+
+type AddMemoryArgs struct {
+	Req *rag_svr.AddMemoryReq
+}
+
+func (p *AddMemoryArgs) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetReq() {
+		return out, nil
+	}
+	return proto.Marshal(p.Req)
+}
+
+func (p *AddMemoryArgs) Unmarshal(in []byte) error {
+	msg := new(rag_svr.AddMemoryReq)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Req = msg
+	return nil
+}
+
+var AddMemoryArgs_Req_DEFAULT *rag_svr.AddMemoryReq
+
+func (p *AddMemoryArgs) GetReq() *rag_svr.AddMemoryReq {
+	if !p.IsSetReq() {
+		return AddMemoryArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+
+func (p *AddMemoryArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *AddMemoryArgs) GetFirstArgument() interface{} {
+	return p.Req
+}
+
+type AddMemoryResult struct {
+	Success *rag_svr.AddMemoryRsp
+}
+
+var AddMemoryResult_Success_DEFAULT *rag_svr.AddMemoryRsp
+
+func (p *AddMemoryResult) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetSuccess() {
+		return out, nil
+	}
+	return proto.Marshal(p.Success)
+}
+
+func (p *AddMemoryResult) Unmarshal(in []byte) error {
+	msg := new(rag_svr.AddMemoryRsp)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Success = msg
+	return nil
+}
+
+func (p *AddMemoryResult) GetSuccess() *rag_svr.AddMemoryRsp {
+	if !p.IsSetSuccess() {
+		return AddMemoryResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+func (p *AddMemoryResult) SetSuccess(x interface{}) {
+	p.Success = x.(*rag_svr.AddMemoryRsp)
+}
+
+func (p *AddMemoryResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *AddMemoryResult) GetResult() interface{} {
+	return p.Success
+}
+
+func getMemoryHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	switch s := arg.(type) {
+	case *streaming.Args:
+		st := s.Stream
+		req := new(rag_svr.GetMemoryReq)
+		if err := st.RecvMsg(req); err != nil {
+			return err
+		}
+		resp, err := handler.(rag_svr.RagService).GetMemory(ctx, req)
+		if err != nil {
+			return err
+		}
+		return st.SendMsg(resp)
+	case *GetMemoryArgs:
+		success, err := handler.(rag_svr.RagService).GetMemory(ctx, s.Req)
+		if err != nil {
+			return err
+		}
+		realResult := result.(*GetMemoryResult)
+		realResult.Success = success
+		return nil
+	default:
+		return errInvalidMessageType
+	}
+}
+func newGetMemoryArgs() interface{} {
+	return &GetMemoryArgs{}
+}
+
+func newGetMemoryResult() interface{} {
+	return &GetMemoryResult{}
+}
+
+type GetMemoryArgs struct {
+	Req *rag_svr.GetMemoryReq
+}
+
+func (p *GetMemoryArgs) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetReq() {
+		return out, nil
+	}
+	return proto.Marshal(p.Req)
+}
+
+func (p *GetMemoryArgs) Unmarshal(in []byte) error {
+	msg := new(rag_svr.GetMemoryReq)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Req = msg
+	return nil
+}
+
+var GetMemoryArgs_Req_DEFAULT *rag_svr.GetMemoryReq
+
+func (p *GetMemoryArgs) GetReq() *rag_svr.GetMemoryReq {
+	if !p.IsSetReq() {
+		return GetMemoryArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+
+func (p *GetMemoryArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *GetMemoryArgs) GetFirstArgument() interface{} {
+	return p.Req
+}
+
+type GetMemoryResult struct {
+	Success *rag_svr.GetMemoryRsp
+}
+
+var GetMemoryResult_Success_DEFAULT *rag_svr.GetMemoryRsp
+
+func (p *GetMemoryResult) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetSuccess() {
+		return out, nil
+	}
+	return proto.Marshal(p.Success)
+}
+
+func (p *GetMemoryResult) Unmarshal(in []byte) error {
+	msg := new(rag_svr.GetMemoryRsp)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Success = msg
+	return nil
+}
+
+func (p *GetMemoryResult) GetSuccess() *rag_svr.GetMemoryRsp {
+	if !p.IsSetSuccess() {
+		return GetMemoryResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+func (p *GetMemoryResult) SetSuccess(x interface{}) {
+	p.Success = x.(*rag_svr.GetMemoryRsp)
+}
+
+func (p *GetMemoryResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *GetMemoryResult) GetResult() interface{} {
+	return p.Success
+}
+
+func searchMemoriesHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	switch s := arg.(type) {
+	case *streaming.Args:
+		st := s.Stream
+		req := new(rag_svr.SearchMemoriesReq)
+		if err := st.RecvMsg(req); err != nil {
+			return err
+		}
+		resp, err := handler.(rag_svr.RagService).SearchMemories(ctx, req)
+		if err != nil {
+			return err
+		}
+		return st.SendMsg(resp)
+	case *SearchMemoriesArgs:
+		success, err := handler.(rag_svr.RagService).SearchMemories(ctx, s.Req)
+		if err != nil {
+			return err
+		}
+		realResult := result.(*SearchMemoriesResult)
+		realResult.Success = success
+		return nil
+	default:
+		return errInvalidMessageType
+	}
+}
+func newSearchMemoriesArgs() interface{} {
+	return &SearchMemoriesArgs{}
+}
+
+func newSearchMemoriesResult() interface{} {
+	return &SearchMemoriesResult{}
+}
+
+type SearchMemoriesArgs struct {
+	Req *rag_svr.SearchMemoriesReq
+}
+
+func (p *SearchMemoriesArgs) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetReq() {
+		return out, nil
+	}
+	return proto.Marshal(p.Req)
+}
+
+func (p *SearchMemoriesArgs) Unmarshal(in []byte) error {
+	msg := new(rag_svr.SearchMemoriesReq)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Req = msg
+	return nil
+}
+
+var SearchMemoriesArgs_Req_DEFAULT *rag_svr.SearchMemoriesReq
+
+func (p *SearchMemoriesArgs) GetReq() *rag_svr.SearchMemoriesReq {
+	if !p.IsSetReq() {
+		return SearchMemoriesArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+
+func (p *SearchMemoriesArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *SearchMemoriesArgs) GetFirstArgument() interface{} {
+	return p.Req
+}
+
+type SearchMemoriesResult struct {
+	Success *rag_svr.SearchMemoriesRsp
+}
+
+var SearchMemoriesResult_Success_DEFAULT *rag_svr.SearchMemoriesRsp
+
+func (p *SearchMemoriesResult) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetSuccess() {
+		return out, nil
+	}
+	return proto.Marshal(p.Success)
+}
+
+func (p *SearchMemoriesResult) Unmarshal(in []byte) error {
+	msg := new(rag_svr.SearchMemoriesRsp)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Success = msg
+	return nil
+}
+
+func (p *SearchMemoriesResult) GetSuccess() *rag_svr.SearchMemoriesRsp {
+	if !p.IsSetSuccess() {
+		return SearchMemoriesResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+func (p *SearchMemoriesResult) SetSuccess(x interface{}) {
+	p.Success = x.(*rag_svr.SearchMemoriesRsp)
+}
+
+func (p *SearchMemoriesResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *SearchMemoriesResult) GetResult() interface{} {
+	return p.Success
+}
+
+func deleteMemoryHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	switch s := arg.(type) {
+	case *streaming.Args:
+		st := s.Stream
+		req := new(rag_svr.DeleteMemoryReq)
+		if err := st.RecvMsg(req); err != nil {
+			return err
+		}
+		resp, err := handler.(rag_svr.RagService).DeleteMemory(ctx, req)
+		if err != nil {
+			return err
+		}
+		return st.SendMsg(resp)
+	case *DeleteMemoryArgs:
+		success, err := handler.(rag_svr.RagService).DeleteMemory(ctx, s.Req)
+		if err != nil {
+			return err
+		}
+		realResult := result.(*DeleteMemoryResult)
+		realResult.Success = success
+		return nil
+	default:
+		return errInvalidMessageType
+	}
+}
+func newDeleteMemoryArgs() interface{} {
+	return &DeleteMemoryArgs{}
+}
+
+func newDeleteMemoryResult() interface{} {
+	return &DeleteMemoryResult{}
+}
+
+type DeleteMemoryArgs struct {
+	Req *rag_svr.DeleteMemoryReq
+}
+
+func (p *DeleteMemoryArgs) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetReq() {
+		return out, nil
+	}
+	return proto.Marshal(p.Req)
+}
+
+func (p *DeleteMemoryArgs) Unmarshal(in []byte) error {
+	msg := new(rag_svr.DeleteMemoryReq)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Req = msg
+	return nil
+}
+
+var DeleteMemoryArgs_Req_DEFAULT *rag_svr.DeleteMemoryReq
+
+func (p *DeleteMemoryArgs) GetReq() *rag_svr.DeleteMemoryReq {
+	if !p.IsSetReq() {
+		return DeleteMemoryArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+
+func (p *DeleteMemoryArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *DeleteMemoryArgs) GetFirstArgument() interface{} {
+	return p.Req
+}
+
+type DeleteMemoryResult struct {
+	Success *rag_svr.DeleteMemoryRsp
+}
+
+var DeleteMemoryResult_Success_DEFAULT *rag_svr.DeleteMemoryRsp
+
+func (p *DeleteMemoryResult) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetSuccess() {
+		return out, nil
+	}
+	return proto.Marshal(p.Success)
+}
+
+func (p *DeleteMemoryResult) Unmarshal(in []byte) error {
+	msg := new(rag_svr.DeleteMemoryRsp)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Success = msg
+	return nil
+}
+
+func (p *DeleteMemoryResult) GetSuccess() *rag_svr.DeleteMemoryRsp {
+	if !p.IsSetSuccess() {
+		return DeleteMemoryResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+func (p *DeleteMemoryResult) SetSuccess(x interface{}) {
+	p.Success = x.(*rag_svr.DeleteMemoryRsp)
+}
+
+func (p *DeleteMemoryResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *DeleteMemoryResult) GetResult() interface{} {
+	return p.Success
+}
+
+func addChatRecordHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	switch s := arg.(type) {
+	case *streaming.Args:
+		st := s.Stream
+		req := new(rag_svr.AddChatRecordReq)
+		if err := st.RecvMsg(req); err != nil {
+			return err
+		}
+		resp, err := handler.(rag_svr.RagService).AddChatRecord(ctx, req)
+		if err != nil {
+			return err
+		}
+		return st.SendMsg(resp)
+	case *AddChatRecordArgs:
+		success, err := handler.(rag_svr.RagService).AddChatRecord(ctx, s.Req)
+		if err != nil {
+			return err
+		}
+		realResult := result.(*AddChatRecordResult)
+		realResult.Success = success
+		return nil
+	default:
+		return errInvalidMessageType
+	}
+}
+func newAddChatRecordArgs() interface{} {
+	return &AddChatRecordArgs{}
+}
+
+func newAddChatRecordResult() interface{} {
+	return &AddChatRecordResult{}
+}
+
+type AddChatRecordArgs struct {
+	Req *rag_svr.AddChatRecordReq
+}
+
+func (p *AddChatRecordArgs) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetReq() {
+		return out, nil
+	}
+	return proto.Marshal(p.Req)
+}
+
+func (p *AddChatRecordArgs) Unmarshal(in []byte) error {
+	msg := new(rag_svr.AddChatRecordReq)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Req = msg
+	return nil
+}
+
+var AddChatRecordArgs_Req_DEFAULT *rag_svr.AddChatRecordReq
+
+func (p *AddChatRecordArgs) GetReq() *rag_svr.AddChatRecordReq {
+	if !p.IsSetReq() {
+		return AddChatRecordArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+
+func (p *AddChatRecordArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *AddChatRecordArgs) GetFirstArgument() interface{} {
+	return p.Req
+}
+
+type AddChatRecordResult struct {
+	Success *rag_svr.AddChatRecordRsp
+}
+
+var AddChatRecordResult_Success_DEFAULT *rag_svr.AddChatRecordRsp
+
+func (p *AddChatRecordResult) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetSuccess() {
+		return out, nil
+	}
+	return proto.Marshal(p.Success)
+}
+
+func (p *AddChatRecordResult) Unmarshal(in []byte) error {
+	msg := new(rag_svr.AddChatRecordRsp)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Success = msg
+	return nil
+}
+
+func (p *AddChatRecordResult) GetSuccess() *rag_svr.AddChatRecordRsp {
+	if !p.IsSetSuccess() {
+		return AddChatRecordResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+func (p *AddChatRecordResult) SetSuccess(x interface{}) {
+	p.Success = x.(*rag_svr.AddChatRecordRsp)
+}
+
+func (p *AddChatRecordResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *AddChatRecordResult) GetResult() interface{} {
+	return p.Success
+}
+
+func getChatRecordsHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	switch s := arg.(type) {
+	case *streaming.Args:
+		st := s.Stream
+		req := new(rag_svr.GetChatRecordsReq)
+		if err := st.RecvMsg(req); err != nil {
+			return err
+		}
+		resp, err := handler.(rag_svr.RagService).GetChatRecords(ctx, req)
+		if err != nil {
+			return err
+		}
+		return st.SendMsg(resp)
+	case *GetChatRecordsArgs:
+		success, err := handler.(rag_svr.RagService).GetChatRecords(ctx, s.Req)
+		if err != nil {
+			return err
+		}
+		realResult := result.(*GetChatRecordsResult)
+		realResult.Success = success
+		return nil
+	default:
+		return errInvalidMessageType
+	}
+}
+func newGetChatRecordsArgs() interface{} {
+	return &GetChatRecordsArgs{}
+}
+
+func newGetChatRecordsResult() interface{} {
+	return &GetChatRecordsResult{}
+}
+
+type GetChatRecordsArgs struct {
+	Req *rag_svr.GetChatRecordsReq
+}
+
+func (p *GetChatRecordsArgs) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetReq() {
+		return out, nil
+	}
+	return proto.Marshal(p.Req)
+}
+
+func (p *GetChatRecordsArgs) Unmarshal(in []byte) error {
+	msg := new(rag_svr.GetChatRecordsReq)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Req = msg
+	return nil
+}
+
+var GetChatRecordsArgs_Req_DEFAULT *rag_svr.GetChatRecordsReq
+
+func (p *GetChatRecordsArgs) GetReq() *rag_svr.GetChatRecordsReq {
+	if !p.IsSetReq() {
+		return GetChatRecordsArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+
+func (p *GetChatRecordsArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *GetChatRecordsArgs) GetFirstArgument() interface{} {
+	return p.Req
+}
+
+type GetChatRecordsResult struct {
+	Success *rag_svr.GetChatRecordsRsp
+}
+
+var GetChatRecordsResult_Success_DEFAULT *rag_svr.GetChatRecordsRsp
+
+func (p *GetChatRecordsResult) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetSuccess() {
+		return out, nil
+	}
+	return proto.Marshal(p.Success)
+}
+
+func (p *GetChatRecordsResult) Unmarshal(in []byte) error {
+	msg := new(rag_svr.GetChatRecordsRsp)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Success = msg
+	return nil
+}
+
+func (p *GetChatRecordsResult) GetSuccess() *rag_svr.GetChatRecordsRsp {
+	if !p.IsSetSuccess() {
+		return GetChatRecordsResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+func (p *GetChatRecordsResult) SetSuccess(x interface{}) {
+	p.Success = x.(*rag_svr.GetChatRecordsRsp)
+}
+
+func (p *GetChatRecordsResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *GetChatRecordsResult) GetResult() interface{} {
+	return p.Success
+}
+
 type kClient struct {
 	c client.Client
 }
@@ -1443,62 +2373,21 @@ func (p *kClient) CreateSession(ctx context.Context, Req *rag_svr.CreateSessionR
 	return _result.GetSuccess(), nil
 }
 
+func (p *kClient) GetSession(ctx context.Context, Req *rag_svr.GetSessionReq) (r *rag_svr.GetSessionRsp, err error) {
+	var _args GetSessionArgs
+	_args.Req = Req
+	var _result GetSessionResult
+	if err = p.c.Call(ctx, "GetSession", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
 func (p *kClient) EndSession(ctx context.Context, Req *rag_svr.EndSessionReq) (r *rag_svr.EndSessionRsp, err error) {
 	var _args EndSessionArgs
 	_args.Req = Req
 	var _result EndSessionResult
 	if err = p.c.Call(ctx, "EndSession", &_args, &_result); err != nil {
-		return
-	}
-	return _result.GetSuccess(), nil
-}
-
-func (p *kClient) SendMessage(ctx context.Context, Req *rag_svr.SendMessageReq) (r *rag_svr.SendMessageRsp, err error) {
-	var _args SendMessageArgs
-	_args.Req = Req
-	var _result SendMessageResult
-	if err = p.c.Call(ctx, "SendMessage", &_args, &_result); err != nil {
-		return
-	}
-	return _result.GetSuccess(), nil
-}
-
-func (p *kClient) SendMessageStream(ctx context.Context, req *rag_svr.SendMessageReq) (RagService_SendMessageStreamClient, error) {
-	streamClient, ok := p.c.(client.Streaming)
-	if !ok {
-		return nil, fmt.Errorf("client not support streaming")
-	}
-	res := new(streaming.Result)
-	err := streamClient.Stream(ctx, "SendMessageStream", nil, res)
-	if err != nil {
-		return nil, err
-	}
-	stream := &ragServiceSendMessageStreamClient{res.Stream}
-
-	if err := stream.Stream.SendMsg(req); err != nil {
-		return nil, err
-	}
-	if err := stream.Stream.Close(); err != nil {
-		return nil, err
-	}
-	return stream, nil
-}
-
-func (p *kClient) AddDocument(ctx context.Context, Req *rag_svr.AddDocumentReq) (r *rag_svr.AddDocumentRsp, err error) {
-	var _args AddDocumentArgs
-	_args.Req = Req
-	var _result AddDocumentResult
-	if err = p.c.Call(ctx, "AddDocument", &_args, &_result); err != nil {
-		return
-	}
-	return _result.GetSuccess(), nil
-}
-
-func (p *kClient) SearchDocument(ctx context.Context, Req *rag_svr.SearchDocumentReq) (r *rag_svr.SearchDocumentRsp, err error) {
-	var _args SearchDocumentArgs
-	_args.Req = Req
-	var _result SearchDocumentResult
-	if err = p.c.Call(ctx, "SearchDocument", &_args, &_result); err != nil {
 		return
 	}
 	return _result.GetSuccess(), nil
@@ -1519,6 +2408,116 @@ func (p *kClient) CleanInactiveSessions(ctx context.Context, Req *rag_svr.CleanI
 	_args.Req = Req
 	var _result CleanInactiveSessionsResult
 	if err = p.c.Call(ctx, "CleanInactiveSessions", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) SendMessage(ctx context.Context, Req *rag_svr.SendMessageReq) (r *rag_svr.SendMessageRsp, err error) {
+	var _args SendMessageArgs
+	_args.Req = Req
+	var _result SendMessageResult
+	if err = p.c.Call(ctx, "SendMessage", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) AddDocument(ctx context.Context, Req *rag_svr.AddDocumentReq) (r *rag_svr.AddDocumentRsp, err error) {
+	var _args AddDocumentArgs
+	_args.Req = Req
+	var _result AddDocumentResult
+	if err = p.c.Call(ctx, "AddDocument", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) DeleteDocument(ctx context.Context, Req *rag_svr.DeleteDocumentReq) (r *rag_svr.DeleteDocumentRsp, err error) {
+	var _args DeleteDocumentArgs
+	_args.Req = Req
+	var _result DeleteDocumentResult
+	if err = p.c.Call(ctx, "DeleteDocument", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) SearchDocument(ctx context.Context, Req *rag_svr.SearchDocumentReq) (r *rag_svr.SearchDocumentRsp, err error) {
+	var _args SearchDocumentArgs
+	_args.Req = Req
+	var _result SearchDocumentResult
+	if err = p.c.Call(ctx, "SearchDocument", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) ListDocument(ctx context.Context, Req *rag_svr.ListDocumentReq) (r *rag_svr.ListDocumentRsp, err error) {
+	var _args ListDocumentArgs
+	_args.Req = Req
+	var _result ListDocumentResult
+	if err = p.c.Call(ctx, "ListDocument", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) AddMemory(ctx context.Context, Req *rag_svr.AddMemoryReq) (r *rag_svr.AddMemoryRsp, err error) {
+	var _args AddMemoryArgs
+	_args.Req = Req
+	var _result AddMemoryResult
+	if err = p.c.Call(ctx, "AddMemory", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) GetMemory(ctx context.Context, Req *rag_svr.GetMemoryReq) (r *rag_svr.GetMemoryRsp, err error) {
+	var _args GetMemoryArgs
+	_args.Req = Req
+	var _result GetMemoryResult
+	if err = p.c.Call(ctx, "GetMemory", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) SearchMemories(ctx context.Context, Req *rag_svr.SearchMemoriesReq) (r *rag_svr.SearchMemoriesRsp, err error) {
+	var _args SearchMemoriesArgs
+	_args.Req = Req
+	var _result SearchMemoriesResult
+	if err = p.c.Call(ctx, "SearchMemories", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) DeleteMemory(ctx context.Context, Req *rag_svr.DeleteMemoryReq) (r *rag_svr.DeleteMemoryRsp, err error) {
+	var _args DeleteMemoryArgs
+	_args.Req = Req
+	var _result DeleteMemoryResult
+	if err = p.c.Call(ctx, "DeleteMemory", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) AddChatRecord(ctx context.Context, Req *rag_svr.AddChatRecordReq) (r *rag_svr.AddChatRecordRsp, err error) {
+	var _args AddChatRecordArgs
+	_args.Req = Req
+	var _result AddChatRecordResult
+	if err = p.c.Call(ctx, "AddChatRecord", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) GetChatRecords(ctx context.Context, Req *rag_svr.GetChatRecordsReq) (r *rag_svr.GetChatRecordsRsp, err error) {
+	var _args GetChatRecordsArgs
+	_args.Req = Req
+	var _result GetChatRecordsResult
+	if err = p.c.Call(ctx, "GetChatRecords", &_args, &_result); err != nil {
 		return
 	}
 	return _result.GetSuccess(), nil

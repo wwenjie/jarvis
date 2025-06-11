@@ -23,7 +23,7 @@ import (
 func main() {
 	// 初始化服务
 	logger.Infof("开始初始化服务...")
-	err, _, _ := framework.InitService()
+	err, registry, _ := framework.InitService()
 	if err != nil {
 		logger.Errorf("初始化服务失败: %v", err)
 		os.Exit(1)
@@ -97,6 +97,7 @@ func main() {
 			IP:   net.ParseIP("0.0.0.0"),
 			Port: config.GlobalConfig.Service.Port,
 		}),
+		server.WithRegistry(registry),
 	)
 
 	// 优雅退出

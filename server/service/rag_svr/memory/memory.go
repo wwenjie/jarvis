@@ -24,7 +24,6 @@ const (
 
 	// Milvus 集合名称
 	MemoryCollectionName = "chat_memories"
-	MemoryVectorDim      = 1536 // OpenAI text-embedding-ada-002 的维度
 )
 
 // 记忆结构
@@ -61,7 +60,7 @@ func GetInstance() *MemoryManager {
 }
 
 // AddMemory 添加记忆
-func (m *MemoryManager) AddMemory(ctx context.Context, appID uint64, userID uint64, content string, memoryType string, importance float64, metadata map[string]interface{}, expiresAt *time.Time) error {
+func (m *MemoryManager) AddMemory(ctx context.Context, sessionID uint64, userID uint64, content string, memoryType string, importance float64, metadata map[string]interface{}, expiresAt *time.Time) error {
 	// 生成记忆ID
 	memoryID := m.idGen.GetMemoryID()
 
@@ -80,7 +79,7 @@ func (m *MemoryManager) AddMemory(ctx context.Context, appID uint64, userID uint
 	// 创建记忆记录
 	memory := &mysql.ChatMemory{
 		ID:         memoryID,
-		SessionID:  appID, // 使用 appID 作为 sessionID
+		SessionID:  sessionID, // 使用 sessionID
 		UserID:     userID,
 		Content:    content,
 		MemoryType: memoryType,
@@ -289,4 +288,131 @@ func (m *MemoryManager) GetRelatedMemories(ctx context.Context, memoryID uint64,
 	}
 
 	return result, nil
+}
+
+// BatchAddMemories 批量添加记忆
+func (m *MemoryManager) BatchAddMemories(ctx context.Context, memories []*Memory) error {
+	if len(memories) == 0 {
+		return nil
+	}
+
+	// 准备批量插入的数据
+	var memoryRecords []*mysql.ChatMemory
+	var vectors [][]float32
+	var ids []int64
+
+	for _, memory := range memories {
+		// 生成记忆ID
+		memoryID := m.idGen.GetMemoryID()
+		if memoryID == 0 {
+			return fmt.Errorf("获取记忆ID失败")
+		}
+
+		// 获取向量表示
+		embedding, err := embedding.GetEmbedding(memory.Content)
+		if err != nil {
+			return fmt.Errorf("获取向量表示失败: %v", err)
+		}
+
+		// 将 metadata 转换为 JSON 字符串
+		metadataJSON, err := json.Marshal(memory.Metadata)
+		if err != nil {
+			return fmt.Errorf("转换 metadata 失败: %v", err)
+		}
+
+		// 创建记忆记录
+		memoryRecord := &mysql.ChatMemory{
+			ID:         memoryID,
+			SessionID:  memory.SessionID,
+			UserID:     memory.UserID,
+			Content:    memory.Content,
+			MemoryType: memory.Type,
+			Importance: float32(memory.Importance),
+			Metadata:   string(metadataJSON),
+			CreatedAt:  time.Now(),
+			ExpireTime: time.Now().AddDate(0, 0, 7), // 默认7天过期
+		}
+
+		// 如果设置了过期时间，则使用设置的过期时间
+		if !memory.ExpiresAt.IsZero() {
+			memoryRecord.ExpireTime = memory.ExpiresAt
+		}
+
+		memoryRecords = append(memoryRecords, memoryRecord)
+		vectors = append(vectors, embedding)
+		ids = append(ids, int64(memoryID))
+	}
+
+	// 批量保存到数据库
+	if err := mysql.GetDB().Create(&memoryRecords).Error; err != nil {
+		return fmt.Errorf("批量保存记忆失败: %v", err)
+	}
+
+	// 批量保存到 Milvus
+	if err := milvus.BatchInsertVectors(ctx, MemoryCollectionName, ids, vectors); err != nil {
+		// 删除数据库记录
+		for _, record := range memoryRecords {
+			mysql.GetDB().Delete(record)
+		}
+		return fmt.Errorf("批量保存向量失败: %v", err)
+	}
+
+	return nil
+}
+
+// BatchDeleteMemories 批量删除记忆
+func (m *MemoryManager) BatchDeleteMemories(ctx context.Context, memoryIDs []uint64) error {
+	if len(memoryIDs) == 0 {
+		return nil
+	}
+
+	// 从数据库中删除记忆
+	if err := mysql.GetDB().Where("id IN ?", memoryIDs).Delete(&mysql.ChatMemory{}).Error; err != nil {
+		return fmt.Errorf("批量删除记忆失败: %v", err)
+	}
+
+	// 从 Milvus 中删除向量
+	ids := make([]int64, len(memoryIDs))
+	for i, id := range memoryIDs {
+		ids[i] = int64(id)
+	}
+	if err := milvus.BatchDeleteVectors(ctx, MemoryCollectionName, ids); err != nil {
+		return fmt.Errorf("批量删除向量失败: %v", err)
+	}
+
+	return nil
+}
+
+// UpdateMemory 更新记忆
+func (m *MemoryManager) UpdateMemory(ctx context.Context, memoryID uint64, content string, importance float64, metadata map[string]interface{}) error {
+	// 获取向量表示
+	embedding, err := embedding.GetEmbedding(content)
+	if err != nil {
+		return fmt.Errorf("获取向量表示失败: %v", err)
+	}
+
+	// 将 metadata 转换为 JSON 字符串
+	metadataJSON, err := json.Marshal(metadata)
+	if err != nil {
+		return fmt.Errorf("转换 metadata 失败: %v", err)
+	}
+
+	// 更新数据库记录
+	if err := mysql.GetDB().Model(&mysql.ChatMemory{}).
+		Where("id = ?", memoryID).
+		Updates(map[string]interface{}{
+			"content":    content,
+			"importance": float32(importance),
+			"metadata":   string(metadataJSON),
+			"updated_at": time.Now(),
+		}).Error; err != nil {
+		return fmt.Errorf("更新记忆失败: %v", err)
+	}
+
+	// 更新 Milvus 向量
+	if err := milvus.UpdateVector(ctx, MemoryCollectionName, int64(memoryID), embedding); err != nil {
+		return fmt.Errorf("更新向量失败: %v", err)
+	}
+
+	return nil
 }

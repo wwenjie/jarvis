@@ -78,3 +78,78 @@ func _chatstreamMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _documentMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _adddocumentMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listdocumentMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _searchdocumentMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _deletedocumentMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getsessionlistMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getsessionMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _memoryMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _addmemoryMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getmemoryMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _deletememoryMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _searchmemoriesMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _addchatrecordMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _recordsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getchatrecordsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

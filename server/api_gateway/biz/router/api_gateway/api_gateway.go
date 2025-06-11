@@ -17,21 +17,37 @@ import (
 func Register(r *server.Hertz) {
 
 	root := r.Group("/", rootMw()...)
-	root.POST("/chat", append(_chat0Mw(), api_gateway.Chat)...)
-	_chat := root.Group("/chat", _chatMw()...)
-	_chat.POST("/stream", append(_chatstreamMw(), api_gateway.ChatStream)...)
 	root.GET("/ping", append(_pingMw(), api_gateway.Ping)...)
 	root.GET("/test", append(_testMw(), api_gateway.Test)...)
 	root.POST("/test2", append(_test2Mw(), api_gateway.Test2)...)
 	{
-		_knowledge := root.Group("/knowledge", _knowledgeMw()...)
-		_knowledge.POST("/add", append(_addknowledgeMw(), api_gateway.AddKnowledge)...)
-		_knowledge.GET("/search", append(_searchknowledgeMw(), api_gateway.SearchKnowledge)...)
+		_chat := root.Group("/chat", _chatMw()...)
+		_chat.POST("/record", append(_addchatrecordMw(), api_gateway.AddChatRecord)...)
+		{
+			_records := _chat.Group("/records", _recordsMw()...)
+			_records.GET("/{session_id}", append(_getchatrecordsMw(), api_gateway.GetChatRecords)...)
+		}
+	}
+	{
+		_document := root.Group("/document", _documentMw()...)
+		_document.POST("/add", append(_adddocumentMw(), api_gateway.AddDocument)...)
+		_document.DELETE("/{doc_id}", append(_deletedocumentMw(), api_gateway.DeleteDocument)...)
+		_document.GET("/list", append(_listdocumentMw(), api_gateway.ListDocument)...)
+		_document.GET("/search", append(_searchdocumentMw(), api_gateway.SearchDocument)...)
+	}
+	{
+		_memory := root.Group("/memory", _memoryMw()...)
+		_memory.POST("/add", append(_addmemoryMw(), api_gateway.AddMemory)...)
+		_memory.GET("/get", append(_getmemoryMw(), api_gateway.GetMemory)...)
+		_memory.DELETE("/{memory_id}", append(_deletememoryMw(), api_gateway.DeleteMemory)...)
+		_memory.GET("/search", append(_searchmemoriesMw(), api_gateway.SearchMemories)...)
 	}
 	{
 		_session := root.Group("/session", _sessionMw()...)
 		_session.POST("/create", append(_createsessionMw(), api_gateway.CreateSession)...)
 		_session.POST("/end", append(_endsessionMw(), api_gateway.EndSession)...)
+		_session.GET("/list", append(_getsessionlistMw(), api_gateway.GetSessionList)...)
+		_session.GET("/{session_id}", append(_getsessionMw(), api_gateway.GetSession)...)
 	}
 	{
 		_user := root.Group("/user", _userMw()...)

@@ -6,10 +6,6 @@ import (
 	"context"
 	client "github.com/cloudwego/kitex/client"
 	callopt "github.com/cloudwego/kitex/client/callopt"
-	streamcall "github.com/cloudwego/kitex/client/callopt/streamcall"
-	streamclient "github.com/cloudwego/kitex/client/streamclient"
-	streaming "github.com/cloudwego/kitex/pkg/streaming"
-	transport "github.com/cloudwego/kitex/transport"
 	rag_svr "server/service/rag_svr/kitex_gen/rag_svr"
 )
 
@@ -19,31 +15,27 @@ type Client interface {
 	Test2(ctx context.Context, Req *rag_svr.Test2Req, callOptions ...callopt.Option) (r *rag_svr.Test2Rsp, err error)
 	CreateUser(ctx context.Context, Req *rag_svr.CreateUserReq, callOptions ...callopt.Option) (r *rag_svr.CreateUserRsp, err error)
 	CreateSession(ctx context.Context, Req *rag_svr.CreateSessionReq, callOptions ...callopt.Option) (r *rag_svr.CreateSessionRsp, err error)
+	GetSession(ctx context.Context, Req *rag_svr.GetSessionReq, callOptions ...callopt.Option) (r *rag_svr.GetSessionRsp, err error)
 	EndSession(ctx context.Context, Req *rag_svr.EndSessionReq, callOptions ...callopt.Option) (r *rag_svr.EndSessionRsp, err error)
-	SendMessage(ctx context.Context, Req *rag_svr.SendMessageReq, callOptions ...callopt.Option) (r *rag_svr.SendMessageRsp, err error)
-	SendMessageStream(ctx context.Context, Req *rag_svr.SendMessageReq, callOptions ...callopt.Option) (stream RagService_SendMessageStreamClient, err error)
-	AddDocument(ctx context.Context, Req *rag_svr.AddDocumentReq, callOptions ...callopt.Option) (r *rag_svr.AddDocumentRsp, err error)
-	SearchDocument(ctx context.Context, Req *rag_svr.SearchDocumentReq, callOptions ...callopt.Option) (r *rag_svr.SearchDocumentRsp, err error)
 	GetSessionList(ctx context.Context, Req *rag_svr.GetSessionListReq, callOptions ...callopt.Option) (r *rag_svr.GetSessionListRsp, err error)
 	CleanInactiveSessions(ctx context.Context, Req *rag_svr.CleanInactiveSessionsReq, callOptions ...callopt.Option) (r *rag_svr.CleanInactiveSessionsRsp, err error)
-}
-
-// StreamClient is designed to provide Interface for Streaming APIs.
-type StreamClient interface {
-	SendMessageStream(ctx context.Context, Req *rag_svr.SendMessageReq, callOptions ...streamcall.Option) (stream RagService_SendMessageStreamClient, err error)
-}
-
-type RagService_SendMessageStreamClient interface {
-	streaming.Stream
-	Recv() (*rag_svr.SendMessageRsp, error)
+	SendMessage(ctx context.Context, Req *rag_svr.SendMessageReq, callOptions ...callopt.Option) (r *rag_svr.SendMessageRsp, err error)
+	AddDocument(ctx context.Context, Req *rag_svr.AddDocumentReq, callOptions ...callopt.Option) (r *rag_svr.AddDocumentRsp, err error)
+	DeleteDocument(ctx context.Context, Req *rag_svr.DeleteDocumentReq, callOptions ...callopt.Option) (r *rag_svr.DeleteDocumentRsp, err error)
+	SearchDocument(ctx context.Context, Req *rag_svr.SearchDocumentReq, callOptions ...callopt.Option) (r *rag_svr.SearchDocumentRsp, err error)
+	ListDocument(ctx context.Context, Req *rag_svr.ListDocumentReq, callOptions ...callopt.Option) (r *rag_svr.ListDocumentRsp, err error)
+	AddMemory(ctx context.Context, Req *rag_svr.AddMemoryReq, callOptions ...callopt.Option) (r *rag_svr.AddMemoryRsp, err error)
+	GetMemory(ctx context.Context, Req *rag_svr.GetMemoryReq, callOptions ...callopt.Option) (r *rag_svr.GetMemoryRsp, err error)
+	SearchMemories(ctx context.Context, Req *rag_svr.SearchMemoriesReq, callOptions ...callopt.Option) (r *rag_svr.SearchMemoriesRsp, err error)
+	DeleteMemory(ctx context.Context, Req *rag_svr.DeleteMemoryReq, callOptions ...callopt.Option) (r *rag_svr.DeleteMemoryRsp, err error)
+	AddChatRecord(ctx context.Context, Req *rag_svr.AddChatRecordReq, callOptions ...callopt.Option) (r *rag_svr.AddChatRecordRsp, err error)
+	GetChatRecords(ctx context.Context, Req *rag_svr.GetChatRecordsReq, callOptions ...callopt.Option) (r *rag_svr.GetChatRecordsRsp, err error)
 }
 
 // NewClient creates a client for the service defined in IDL.
 func NewClient(destService string, opts ...client.Option) (Client, error) {
 	var options []client.Option
 	options = append(options, client.WithDestService(destService))
-
-	options = append(options, client.WithTransportProtocol(transport.GRPC))
 
 	options = append(options, opts...)
 
@@ -89,29 +81,14 @@ func (p *kRagServiceClient) CreateSession(ctx context.Context, Req *rag_svr.Crea
 	return p.kClient.CreateSession(ctx, Req)
 }
 
+func (p *kRagServiceClient) GetSession(ctx context.Context, Req *rag_svr.GetSessionReq, callOptions ...callopt.Option) (r *rag_svr.GetSessionRsp, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.GetSession(ctx, Req)
+}
+
 func (p *kRagServiceClient) EndSession(ctx context.Context, Req *rag_svr.EndSessionReq, callOptions ...callopt.Option) (r *rag_svr.EndSessionRsp, err error) {
 	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
 	return p.kClient.EndSession(ctx, Req)
-}
-
-func (p *kRagServiceClient) SendMessage(ctx context.Context, Req *rag_svr.SendMessageReq, callOptions ...callopt.Option) (r *rag_svr.SendMessageRsp, err error) {
-	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
-	return p.kClient.SendMessage(ctx, Req)
-}
-
-func (p *kRagServiceClient) SendMessageStream(ctx context.Context, Req *rag_svr.SendMessageReq, callOptions ...callopt.Option) (stream RagService_SendMessageStreamClient, err error) {
-	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
-	return p.kClient.SendMessageStream(ctx, Req)
-}
-
-func (p *kRagServiceClient) AddDocument(ctx context.Context, Req *rag_svr.AddDocumentReq, callOptions ...callopt.Option) (r *rag_svr.AddDocumentRsp, err error) {
-	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
-	return p.kClient.AddDocument(ctx, Req)
-}
-
-func (p *kRagServiceClient) SearchDocument(ctx context.Context, Req *rag_svr.SearchDocumentReq, callOptions ...callopt.Option) (r *rag_svr.SearchDocumentRsp, err error) {
-	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
-	return p.kClient.SearchDocument(ctx, Req)
 }
 
 func (p *kRagServiceClient) GetSessionList(ctx context.Context, Req *rag_svr.GetSessionListReq, callOptions ...callopt.Option) (r *rag_svr.GetSessionListRsp, err error) {
@@ -124,37 +101,57 @@ func (p *kRagServiceClient) CleanInactiveSessions(ctx context.Context, Req *rag_
 	return p.kClient.CleanInactiveSessions(ctx, Req)
 }
 
-// NewStreamClient creates a stream client for the service's streaming APIs defined in IDL.
-func NewStreamClient(destService string, opts ...streamclient.Option) (StreamClient, error) {
-	var options []client.Option
-	options = append(options, client.WithDestService(destService))
-	options = append(options, client.WithTransportProtocol(transport.GRPC))
-	options = append(options, streamclient.GetClientOptions(opts)...)
-
-	kc, err := client.NewClient(serviceInfoForStreamClient(), options...)
-	if err != nil {
-		return nil, err
-	}
-	return &kRagServiceStreamClient{
-		kClient: newServiceClient(kc),
-	}, nil
+func (p *kRagServiceClient) SendMessage(ctx context.Context, Req *rag_svr.SendMessageReq, callOptions ...callopt.Option) (r *rag_svr.SendMessageRsp, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.SendMessage(ctx, Req)
 }
 
-// MustNewStreamClient creates a stream client for the service's streaming APIs defined in IDL.
-// It panics if any error occurs.
-func MustNewStreamClient(destService string, opts ...streamclient.Option) StreamClient {
-	kc, err := NewStreamClient(destService, opts...)
-	if err != nil {
-		panic(err)
-	}
-	return kc
+func (p *kRagServiceClient) AddDocument(ctx context.Context, Req *rag_svr.AddDocumentReq, callOptions ...callopt.Option) (r *rag_svr.AddDocumentRsp, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.AddDocument(ctx, Req)
 }
 
-type kRagServiceStreamClient struct {
-	*kClient
+func (p *kRagServiceClient) DeleteDocument(ctx context.Context, Req *rag_svr.DeleteDocumentReq, callOptions ...callopt.Option) (r *rag_svr.DeleteDocumentRsp, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.DeleteDocument(ctx, Req)
 }
 
-func (p *kRagServiceStreamClient) SendMessageStream(ctx context.Context, Req *rag_svr.SendMessageReq, callOptions ...streamcall.Option) (stream RagService_SendMessageStreamClient, err error) {
-	ctx = client.NewCtxWithCallOptions(ctx, streamcall.GetCallOptions(callOptions))
-	return p.kClient.SendMessageStream(ctx, Req)
+func (p *kRagServiceClient) SearchDocument(ctx context.Context, Req *rag_svr.SearchDocumentReq, callOptions ...callopt.Option) (r *rag_svr.SearchDocumentRsp, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.SearchDocument(ctx, Req)
+}
+
+func (p *kRagServiceClient) ListDocument(ctx context.Context, Req *rag_svr.ListDocumentReq, callOptions ...callopt.Option) (r *rag_svr.ListDocumentRsp, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.ListDocument(ctx, Req)
+}
+
+func (p *kRagServiceClient) AddMemory(ctx context.Context, Req *rag_svr.AddMemoryReq, callOptions ...callopt.Option) (r *rag_svr.AddMemoryRsp, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.AddMemory(ctx, Req)
+}
+
+func (p *kRagServiceClient) GetMemory(ctx context.Context, Req *rag_svr.GetMemoryReq, callOptions ...callopt.Option) (r *rag_svr.GetMemoryRsp, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.GetMemory(ctx, Req)
+}
+
+func (p *kRagServiceClient) SearchMemories(ctx context.Context, Req *rag_svr.SearchMemoriesReq, callOptions ...callopt.Option) (r *rag_svr.SearchMemoriesRsp, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.SearchMemories(ctx, Req)
+}
+
+func (p *kRagServiceClient) DeleteMemory(ctx context.Context, Req *rag_svr.DeleteMemoryReq, callOptions ...callopt.Option) (r *rag_svr.DeleteMemoryRsp, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.DeleteMemory(ctx, Req)
+}
+
+func (p *kRagServiceClient) AddChatRecord(ctx context.Context, Req *rag_svr.AddChatRecordReq, callOptions ...callopt.Option) (r *rag_svr.AddChatRecordRsp, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.AddChatRecord(ctx, Req)
+}
+
+func (p *kRagServiceClient) GetChatRecords(ctx context.Context, Req *rag_svr.GetChatRecordsReq, callOptions ...callopt.Option) (r *rag_svr.GetChatRecordsRsp, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.GetChatRecords(ctx, Req)
 }
