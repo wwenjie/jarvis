@@ -34,6 +34,33 @@ func main() {
 	)
 
 	// 初始化Kitex客户端并集成etcd服务发现
+	ragSvrClient, err := ragservice.NewClient(
+		"rag_svr",
+		client.WithResolver(etcdResolver),
+		client.WithRPCTimeout(3*time.Second), // RPC超时时间
+		client.WithLoadBalancer(loadbalance.NewWeightedBalancer()), // 负载均衡策略
+		client.WithMiddleware(func(next endpoint.Endpoint) endpoint.Endpoint {
+			return func(ctx context.Context, req, resp interface{}) (err error) {
+				err = next(ctx, req, resp) // 先发起RPC
+				rpcInfo := rpcinfo.GetRPCInfo(ctx)
+				if rpcInfo == nil {
+					logger.Infof("本次请求没有下游服务端地址")
+					return
+				}
+				to := rpcInfo.To()
+				if to == nil || to.Address() == nil {
+					logger.Infof("本次请求没有下游服务端地址")
+					return
+				}
+				logger.Infof("本次请求实际下游服务端地址: %s", to.Address().String())
+				return
+			}
+		}),
+	)
+	if err != nil {
+		log.Fatalf("创建客户端失败: %v", err)
+	}
+
 	ragSvrTestClient, err := ragservice.NewClient(
 		"rag_svr",
 		client.WithResolver(etcdResolver),
@@ -74,6 +101,7 @@ func main() {
 
 	// 将客户端保存到上下文中，供handler使用
 	h.Use(func(ctx context.Context, c *app.RequestContext) {
+		c.Set("rag_svr_client", ragSvrClient)
 		c.Set("rag_svr_test_client", ragSvrTestClient)
 		c.Set("rag_svr_test2_client", ragSvrTest2Client)
 		c.Next(ctx)

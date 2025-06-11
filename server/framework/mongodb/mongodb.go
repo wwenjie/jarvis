@@ -23,11 +23,12 @@ var (
 func InitMongoDB() error {
 	// 设置连接选项
 	clientOptions := options.Client().ApplyURI(
-		fmt.Sprintf("mongodb://%s:%s@%s:%d",
+		fmt.Sprintf("mongodb://%s:%s@%s:%d/%s?authSource=admin",
 			config.GlobalConfig.MongoDB.Username,
 			config.GlobalConfig.MongoDB.Password,
 			config.GlobalConfig.MongoDB.Host,
 			config.GlobalConfig.MongoDB.Port,
+			config.GlobalConfig.MongoDB.Database,
 		),
 	).SetMaxPoolSize(100)
 

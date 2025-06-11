@@ -5,6 +5,7 @@ services:
     image: bitnami/etcd:3.5
     container_name: etcd1
     network_mode: host
+    restart: always
     environment:
       - ALLOW_NONE_AUTHENTICATION=yes  # 生产环境建议禁用，启用认证
       - ETCD_NAME=etcd1
@@ -24,6 +25,7 @@ services:
     image: bitnami/etcd:3.5
     container_name: etcd2
     network_mode: host
+    restart: always
     environment:
       - ALLOW_NONE_AUTHENTICATION=yes  # 生产环境建议禁用，启用认证
       - ETCD_NAME=etcd2
@@ -43,6 +45,7 @@ services:
     image: bitnami/etcd:3.5
     container_name: etcd3
     network_mode: host
+    restart: always
     environment:
       - ALLOW_NONE_AUTHENTICATION=yes  # 生产环境建议禁用，启用认证
       - ETCD_NAME=etcd3

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"server/framework/logger"
@@ -174,109 +175,49 @@ func (c *QwenClient) handleFunctionCall(ctx context.Context, response *QwenRespo
 // StreamChat 实现与 Qwen 大模型的流式对话
 func (c *QwenClient) StreamChat(ctx context.Context, messages []QwenMessage, context string) (<-chan string, <-chan error) {
 	responseChan := make(chan string)
-	errorChan := make(chan error)
+	errorChan := make(chan error, 1)
+
+	// 使用 sync.Once 确保通道只被关闭一次
+	var closeOnce sync.Once
+	closeChannels := func() {
+		closeOnce.Do(func() {
+			close(responseChan)
+			close(errorChan)
+		})
+	}
 
 	go func() {
-		defer close(responseChan)
-		defer close(errorChan)
+		defer closeChannels()
 
 		// 构建系统消息
 		systemMessage := QwenMessage{
 			Role:    "system",
-			Content: fmt.Sprintf("%s\n\n%s", SystemPrompt, FunctionCallPrompt),
+			Content: context,
 		}
 
-		// 添加系统消息到对话历史
-		allMessages := append([]QwenMessage{systemMessage}, messages...)
-
-		// 注册函数
-		functions := []QwenFunction{
-			{
-				Name:        "get_session_info",
-				Description: "获取会话信息，包括主题、创建时间等",
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"session_id": map[string]interface{}{
-							"type":        "number",
-							"description": "会话ID",
-						},
-					},
-					"required": []string{"session_id"},
-				},
-			},
-			{
-				Name:        "get_chat_history",
-				Description: "获取最近的对话历史",
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"session_id": map[string]interface{}{
-							"type":        "number",
-							"description": "会话ID",
-						},
-						"limit": map[string]interface{}{
-							"type":        "number",
-							"description": "返回记录数量限制",
-						},
-					},
-					"required": []string{"session_id", "limit"},
-				},
-			},
-			{
-				Name:        "get_user_preferences",
-				Description: "获取用户偏好设置",
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"user_id": map[string]interface{}{
-							"type":        "number",
-							"description": "用户ID",
-						},
-					},
-					"required": []string{"user_id"},
-				},
-			},
-			{
-				Name:        "get_related_memories",
-				Description: "获取相关的其他记忆",
-				Parameters: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"memory_id": map[string]interface{}{
-							"type":        "number",
-							"description": "记忆ID",
-						},
-						"limit": map[string]interface{}{
-							"type":        "number",
-							"description": "返回记录数量限制",
-						},
-					},
-					"required": []string{"memory_id", "limit"},
-				},
-			},
-		}
+		// 将系统消息添加到消息列表的开头
+		messages = append([]QwenMessage{systemMessage}, messages...)
 
 		// 构建请求
-		req := QwenRequest{
+		request := QwenRequest{
 			Model: c.config.ModelName,
 			Input: QwenInput{
-				Messages: allMessages,
+				Messages: messages,
 			},
 			Parameters: QwenParameters{
-				ResultFormat: "message",
+				ResultFormat: "text",
 				Temperature:  c.config.Temperature,
 				TopP:         c.config.TopP,
 				TopK:         10,
 				MaxTokens:    c.config.MaxTokens,
 				Stream:       true,
 			},
-			Functions: functions,
 		}
 
 		// 序列化请求
-		reqBody, err := json.Marshal(req)
+		reqBody, err := json.Marshal(request)
 		if err != nil {
+			logger.Errorf("序列化请求失败: %v", err)
 			errorChan <- fmt.Errorf("序列化请求失败: %v", err)
 			return
 		}
@@ -284,85 +225,103 @@ func (c *QwenClient) StreamChat(ctx context.Context, messages []QwenMessage, con
 		// 创建 HTTP 请求
 		httpReq, err := http.NewRequestWithContext(ctx, "POST", QwenAPIEndpoint, bytes.NewBuffer(reqBody))
 		if err != nil {
+			logger.Errorf("创建请求失败: %v", err)
 			errorChan <- fmt.Errorf("创建请求失败: %v", err)
 			return
 		}
 
 		// 设置请求头
 		httpReq.Header.Set("Content-Type", "application/json")
-		httpReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.apiKey))
+		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+		httpReq.Header.Set("X-DashScope-SSE", "enable") // 添加 SSE 支持
 
 		// 发送请求
-		var resp *http.Response
-		for retry := 0; retry < MaxRetries; retry++ {
-			resp, err = c.httpClient.Do(httpReq)
-			if err == nil {
-				break
-			}
-			logger.Warnf("请求失败，重试 %d/%d: %v", retry+1, MaxRetries, err)
-			time.Sleep(RetryDelay)
-		}
+		resp, err := c.httpClient.Do(httpReq)
 		if err != nil {
+			logger.Errorf("发送请求失败: %v", err)
 			errorChan <- fmt.Errorf("发送请求失败: %v", err)
 			return
 		}
 		defer resp.Body.Close()
 
-		// 检查响应状态
+		// 检查响应状态码
 		if resp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(resp.Body)
-			errorChan <- fmt.Errorf("API 请求失败: %s, 响应: %s", resp.Status, string(body))
+			logger.Errorf("请求失败: status=%d, body=%s", resp.StatusCode, string(body))
+			errorChan <- fmt.Errorf("请求失败: status=%d, body=%s", resp.StatusCode, string(body))
 			return
 		}
 
 		// 处理流式响应
 		reader := bufio.NewReader(resp.Body)
+		var lastText string
+
 		for {
 			line, err := reader.ReadString('\n')
 			if err != nil {
 				if err == io.EOF {
-					break
+					// 确保最后一个片段被发送
+					if lastText != "" {
+						select {
+						case responseChan <- lastText:
+							logger.Infof("发送最后一个文本片段: %s", lastText)
+						case <-ctx.Done():
+							return
+						}
+					}
+					return
 				}
+				logger.Errorf("读取响应失败: %v", err)
 				errorChan <- fmt.Errorf("读取响应失败: %v", err)
 				return
 			}
 
-			// 跳过空行
-			if strings.TrimSpace(line) == "" {
-				continue
-			}
+			// 记录原始行
+			logger.Infof("收到原始行: %s", line)
+			line = strings.TrimSpace(line) // 先去除空白字符
+			logger.Infof("处理后的行: %s", line)
+			logger.Infof("原始行是否以 data: 开头: %v", strings.HasPrefix(line, "data:"))
 
 			// 解析 SSE 数据
-			if strings.HasPrefix(line, "data: ") {
-				data := strings.TrimPrefix(line, "data: ")
+			if strings.HasPrefix(line, "data:") {
+				data := strings.TrimPrefix(line, "data:")
+				data = strings.TrimSpace(data) // 去除可能的空白字符
+				logger.Infof("收到原始响应数据: %s", data)
+
+				// 尝试解析为 JSON
 				var response QwenResponse
 				if err := json.Unmarshal([]byte(data), &response); err != nil {
-					logger.Errorf("解析响应失败: %v", err)
+					logger.Errorf("解析响应失败: %v, data=%s", err, data)
 					continue
 				}
-
-				// 处理函数调用
-				msg, err := c.handleFunctionCall(ctx, &response)
-				if err != nil {
-					errorChan <- err
-					return
-				}
-
-				// 将函数调用结果添加到对话历史
-				allMessages = append(allMessages, *msg)
+				logger.Infof("解析后的响应: finish_reason=%s, text=%s", response.Output.FinishReason, response.Output.Text)
 
 				// 发送文本片段
 				if response.Output.Text != "" {
+					lastText = response.Output.Text
 					select {
 					case responseChan <- response.Output.Text:
+						logger.Infof("成功发送响应: %s", response.Output.Text)
 					case <-ctx.Done():
 						return
 					}
 				}
 
 				// 检查是否完成
-				if response.Output.FinishReason != "" {
-					break
+				if response.Output.FinishReason == "stop" {
+					logger.Infof("收到完成信号，准备发送最后响应")
+					// 发送最后的完整响应
+					select {
+					case responseChan <- response.Output.Text:
+						logger.Infof("发送最后的完整响应: %s", response.Output.Text)
+					case <-ctx.Done():
+						logger.Infof("上下文已取消，退出")
+						return
+					}
+					logger.Infof("响应完成, 原因: %s, 完整响应: %s", response.Output.FinishReason, response.Output.Text)
+					// 等待一小段时间确保最后一个片段被处理
+					time.Sleep(100 * time.Millisecond)
+					return
 				}
 			}
 		}

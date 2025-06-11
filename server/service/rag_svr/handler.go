@@ -85,8 +85,36 @@ func (s *RagServiceImpl) CreateSession(ctx context.Context, req *rag_svr.CreateS
 
 	// 创建会话
 	session := &mysql.Session{
-		UserID: req.UserId,
-		Status: "active",
+		UserID:         req.UserId,
+		Status:         "active",
+		LastActiveTime: time.Now(),
+	}
+
+	// 初始化用户状态
+	if err := session.SetUserState(make(map[string]string)); err != nil {
+		logger.Errorf("初始化用户状态失败: %v", err)
+		return &rag_svr.CreateSessionRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("初始化用户状态失败: %v", err),
+		}, nil
+	}
+
+	// 初始化系统状态
+	if err := session.SetSystemState(make(map[string]string)); err != nil {
+		logger.Errorf("初始化系统状态失败: %v", err)
+		return &rag_svr.CreateSessionRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("初始化系统状态失败: %v", err),
+		}, nil
+	}
+
+	// 初始化元数据
+	if err := session.SetMetadata(make(map[string]interface{})); err != nil {
+		logger.Errorf("初始化元数据失败: %v", err)
+		return &rag_svr.CreateSessionRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("初始化元数据失败: %v", err),
+		}, nil
 	}
 
 	if err := mysql.GetDB().Create(session).Error; err != nil {
@@ -99,15 +127,54 @@ func (s *RagServiceImpl) CreateSession(ctx context.Context, req *rag_svr.CreateS
 
 	logger.Infof("会话创建成功: session_id=%d", session.ID)
 
+	// 获取用户状态和系统状态
+	userState, err := session.GetUserState()
+	if err != nil {
+		logger.Errorf("获取用户状态失败: %v", err)
+		userState = make(map[string]string)
+	}
+
+	systemState, err := session.GetSystemState()
+	if err != nil {
+		logger.Errorf("获取系统状态失败: %v", err)
+		systemState = make(map[string]string)
+	}
+
+	// 获取元数据
+	metadata, err := session.GetMetadata()
+	if err != nil {
+		logger.Errorf("获取元数据失败: %v", err)
+		metadata = make(map[string]interface{})
+	}
+
+	// 转换为字符串类型的元数据
+	metadataStr := make(map[string]string)
+	for k, v := range metadata {
+		if str, ok := v.(string); ok {
+			metadataStr[k] = str
+		} else {
+			// 将非字符串类型转换为 JSON 字符串
+			if jsonStr, err := json.Marshal(v); err == nil {
+				metadataStr[k] = string(jsonStr)
+			}
+		}
+	}
+
 	// 返回会话信息
 	return &rag_svr.CreateSessionRsp{
 		Code: 0,
 		Msg:  "success",
 		SessionInfo: &rag_svr.SessionInfo{
-			SessionId:  session.ID,
-			UserId:     session.UserID,
-			CreateTime: session.CreatedAt.Format(time.RFC3339),
-			Status:     session.Status,
+			SessionId:   session.ID,
+			UserId:      session.UserID,
+			Title:       session.Title,
+			Summary:     session.Summary,
+			Status:      session.Status,
+			CreateTime:  session.CreatedAt.Format(time.RFC3339),
+			UpdateTime:  session.UpdatedAt.Format(time.RFC3339),
+			UserState:   userState,
+			SystemState: systemState,
+			Metadata:    metadataStr,
 		},
 	}, nil
 }
@@ -135,11 +202,11 @@ func (s *RagServiceImpl) EndSession(ctx context.Context, req *rag_svr.EndSession
 	}, nil
 }
 
-// SendMessage implements the RagServiceImpl interface.
+// SendMessage 实现与 Qwen 大模型的对话
 func (s *RagServiceImpl) SendMessage(ctx context.Context, req *rag_svr.SendMessageReq) (resp *rag_svr.SendMessageRsp, err error) {
 	// 获取会话信息
 	var session mysql.Session
-	if err := mysql.GetDB().First(&session, req.SessionId).Error; err != nil {
+	if err := mysql.GetDB().Model(&mysql.Session{}).First(&session, req.SessionId).Error; err != nil {
 		return &rag_svr.SendMessageRsp{
 			Code: 1,
 			Msg:  fmt.Sprintf("获取会话信息失败: %v", err),
@@ -165,7 +232,7 @@ func (s *RagServiceImpl) SendMessage(ctx context.Context, req *rag_svr.SendMessa
 
 	// 获取最近的对话记录作为上下文
 	var recentRecords []mysql.ChatRecord
-	if err := mysql.GetDB().Where("session_id = ?", req.SessionId).
+	if err := mysql.GetDB().Model(&mysql.ChatRecord{}).Where("session_id = ?", req.SessionId).
 		Order("created_at DESC").
 		Limit(10).
 		Find(&recentRecords).Error; err != nil {
@@ -246,24 +313,49 @@ func (s *RagServiceImpl) SendMessage(ctx context.Context, req *rag_svr.SendMessa
 		"sentiment":        sentiment,
 	}
 
-	// 将 context 转换为 JSON 字符串并记录到日志
-	contextStr, err := json.Marshal(context)
+	// 将 context 转换为 JSON 字符串
+	contextJSON, err := json.Marshal(context)
 	if err != nil {
 		logger.Errorf("序列化上下文失败: %v", err)
-	} else {
-		logger.Infof("当前上下文: %s", string(contextStr))
+		return &rag_svr.SendMessageRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("序列化上下文失败: %v", err),
+		}, nil
+	}
+
+	// 初始化 function_calls 和 metadata
+	functionCallsJSON, err := json.Marshal([]interface{}{})
+	if err != nil {
+		logger.Errorf("序列化 function_calls 失败: %v", err)
+		return &rag_svr.SendMessageRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("序列化 function_calls 失败: %v", err),
+		}, nil
+	}
+
+	metadataJSON, err := json.Marshal(map[string]interface{}{})
+	if err != nil {
+		logger.Errorf("序列化 metadata 失败: %v", err)
+		return &rag_svr.SendMessageRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("序列化 metadata 失败: %v", err),
+		}, nil
 	}
 
 	// 创建对话记录
 	chatRecord := &mysql.ChatRecord{
-		SessionID:   req.SessionId,
-		UserID:      req.UserId,
-		Message:     req.Message,
-		MessageType: req.MessageType,
-		Status:      "pending",
+		SessionID:     req.SessionId,
+		UserID:        req.UserId,
+		Message:       req.Message,
+		MessageType:   req.MessageType,
+		Status:        "pending",
+		Context:       string(contextJSON),
+		FunctionCalls: string(functionCallsJSON),
+		Metadata:      string(metadataJSON),
 	}
 
 	if err := mysql.GetDB().Create(chatRecord).Error; err != nil {
+		logger.Errorf("创建对话记录失败: %v", err)
 		return &rag_svr.SendMessageRsp{
 			Code: 1,
 			Msg:  fmt.Sprintf("创建对话记录失败: %v", err),
@@ -306,24 +398,50 @@ func (s *RagServiceImpl) SendMessage(ctx context.Context, req *rag_svr.SendMessa
 		}
 	}
 
+	// 获取元数据
+	metadata, err := session.GetMetadata()
+	if err != nil {
+		logger.Errorf("获取元数据失败: %v", err)
+		metadata = make(map[string]interface{})
+	}
+
+	// 转换为字符串类型的元数据
+	metadataStr := make(map[string]string)
+	for k, v := range metadata {
+		if str, ok := v.(string); ok {
+			metadataStr[k] = str
+		} else {
+			// 将非字符串类型转换为 JSON 字符串
+			if jsonStr, err := json.Marshal(v); err == nil {
+				metadataStr[k] = string(jsonStr)
+			}
+		}
+	}
+
 	// 构建响应
 	return &rag_svr.SendMessageRsp{
 		Code: 0,
 		Msg:  "success",
+		ChatRecord: &rag_svr.ChatRecord{
+			ChatId:      chatRecord.ID,
+			SessionId:   chatRecord.SessionID,
+			UserId:      chatRecord.UserID,
+			Message:     chatRecord.Message,
+			MessageType: chatRecord.MessageType,
+			Status:      chatRecord.Status,
+			CreateTime:  chatRecord.CreatedAt.Format(time.RFC3339),
+		},
 		SessionInfo: &rag_svr.SessionInfo{
-			SessionId:  session.ID,
-			UserId:     session.UserID,
-			CreateTime: session.CreatedAt.Format(time.RFC3339),
-			Status:     session.Status,
-			ChatRecords: []*rag_svr.ChatRecord{
-				{
-					ChatId:      chatRecord.ID,
-					Message:     chatRecord.Message,
-					MessageType: chatRecord.MessageType,
-					Status:      chatRecord.Status,
-					CreateTime:  chatRecord.CreatedAt.Format(time.RFC3339),
-				},
-			},
+			SessionId:   session.ID,
+			UserId:      session.UserID,
+			Title:       session.Title,
+			Summary:     session.Summary,
+			Status:      session.Status,
+			CreateTime:  session.CreatedAt.Format(time.RFC3339),
+			UpdateTime:  session.UpdatedAt.Format(time.RFC3339),
+			UserState:   userState,
+			SystemState: systemState,
+			Metadata:    metadataStr,
 		},
 	}, nil
 }
@@ -459,7 +577,7 @@ func (s *RagServiceImpl) extractAndStoreMemories(ctx context.Context, userID, se
 	return nil
 }
 
-// AddDocument implements the RagServiceImpl interface.
+// AddDocument 实现添加文档
 func (s *RagServiceImpl) AddDocument(ctx context.Context, req *rag_svr.AddDocumentReq) (resp *rag_svr.AddDocumentRsp, err error) {
 	logger.Infof("添加文档请求: user_id=%d, title=%s", req.UserId, req.Title)
 
@@ -559,7 +677,7 @@ func (s *RagServiceImpl) SearchDocument(ctx context.Context, req *rag_svr.Search
 
 		// 获取文档详情
 		var mysqlDoc mysql.Document
-		if err := mysql.GetDB().First(&mysqlDoc, doc["doc_id"]).Error; err != nil {
+		if err := mysql.GetDB().Model(&mysql.Document{}).First(&mysqlDoc, doc["doc_id"]).Error; err != nil {
 			logger.Errorf("获取文档详情失败: %v", err)
 			continue
 		}
@@ -597,7 +715,7 @@ func (s *RagServiceImpl) GetSessionList(ctx context.Context, req *rag_svr.GetSes
 
 	// 获取用户的会话列表
 	var sessions []mysql.Session
-	query := mysql.GetDB().Where("user_id = ?", req.UserId)
+	query := mysql.GetDB().Model(&mysql.Session{}).Where("user_id = ?", req.UserId)
 
 	// 根据状态筛选
 	if req.Status != "" {
@@ -640,14 +758,51 @@ func (s *RagServiceImpl) GetSessionList(ctx context.Context, req *rag_svr.GetSes
 	// 构建响应
 	sessionInfos := make([]*rag_svr.SessionInfo, 0, len(sessions))
 	for _, session := range sessions {
+		// 获取用户状态
+		userState, err := session.GetUserState()
+		if err != nil {
+			logger.Errorf("获取用户状态失败: %v", err)
+			userState = make(map[string]string)
+		}
+
+		// 获取系统状态
+		systemState, err := session.GetSystemState()
+		if err != nil {
+			logger.Errorf("获取系统状态失败: %v", err)
+			systemState = make(map[string]string)
+		}
+
+		// 获取元数据
+		metadata, err := session.GetMetadata()
+		if err != nil {
+			logger.Errorf("获取元数据失败: %v", err)
+			metadata = make(map[string]interface{})
+		}
+
+		// 转换为字符串类型的元数据
+		metadataStr := make(map[string]string)
+		for k, v := range metadata {
+			if str, ok := v.(string); ok {
+				metadataStr[k] = str
+			} else {
+				// 将非字符串类型转换为 JSON 字符串
+				if jsonStr, err := json.Marshal(v); err == nil {
+					metadataStr[k] = string(jsonStr)
+				}
+			}
+		}
+
 		sessionInfos = append(sessionInfos, &rag_svr.SessionInfo{
-			SessionId:  session.ID,
-			UserId:     session.UserID,
-			Title:      session.Title,
-			Summary:    session.Summary,
-			Status:     session.Status,
-			CreateTime: session.CreatedAt.Format(time.RFC3339),
-			UpdateTime: session.UpdatedAt.Format(time.RFC3339),
+			SessionId:   session.ID,
+			UserId:      session.UserID,
+			Title:       session.Title,
+			Summary:     session.Summary,
+			Status:      session.Status,
+			CreateTime:  session.CreatedAt.Format(time.RFC3339),
+			UpdateTime:  session.UpdatedAt.Format(time.RFC3339),
+			UserState:   userState,
+			SystemState: systemState,
+			Metadata:    metadataStr,
 		})
 	}
 
@@ -688,161 +843,6 @@ func (s *RagServiceImpl) CleanInactiveSessions(ctx context.Context, req *rag_svr
 		Msg:          "success",
 		CleanedCount: result.RowsAffected,
 	}, nil
-}
-
-func (s *RagServiceImpl) SendMessageStream(req *rag_svr.SendMessageReq, stream rag_svr.RagService_SendMessageStreamServer) (err error) {
-	// 获取会话信息
-	var session mysql.Session
-	if err := mysql.GetDB().First(&session, req.SessionId).Error; err != nil {
-		return fmt.Errorf("获取会话信息失败: %v", err)
-	}
-
-	// 获取用户状态和系统状态
-	userState, err := session.GetUserState()
-	if err != nil {
-		return fmt.Errorf("获取用户状态失败: %v", err)
-	}
-
-	systemState, err := session.GetSystemState()
-	if err != nil {
-		return fmt.Errorf("获取系统状态失败: %v", err)
-	}
-
-	// 获取最近的对话记录作为上下文
-	var recentRecords []mysql.ChatRecord
-	if err := mysql.GetDB().Where("session_id = ?", req.SessionId).
-		Order("created_at DESC").
-		Limit(10).
-		Find(&recentRecords).Error; err != nil {
-		return fmt.Errorf("获取历史记录失败: %v", err)
-	}
-
-	// 创建对话记录
-	chatRecord := &mysql.ChatRecord{
-		SessionID:   req.SessionId,
-		UserID:      req.UserId,
-		Message:     req.Message,
-		MessageType: req.MessageType,
-		Status:      "pending",
-	}
-
-	if err := mysql.GetDB().Create(chatRecord).Error; err != nil {
-		return fmt.Errorf("创建对话记录失败: %v", err)
-	}
-
-	// 构建对话历史
-	messages := make([]ai.QwenMessage, 0)
-	for _, record := range recentRecords {
-		messages = append(messages, ai.QwenMessage{
-			Role:    "user",
-			Content: record.Message,
-		})
-		if record.Response != "" {
-			messages = append(messages, ai.QwenMessage{
-				Role:    "assistant",
-				Content: record.Response,
-			})
-		}
-	}
-	messages = append(messages, ai.QwenMessage{
-		Role:    "user",
-		Content: req.Message,
-	})
-
-	// 构建上下文
-	context := map[string]interface{}{
-		"session_summary":  session.Summary,
-		"user_state":       userState,
-		"system_state":     systemState,
-		"recent_messages":  recentRecords,
-		"related_memories": nil,
-	}
-
-	// 将 context 转换为 JSON 字符串并记录到日志
-	contextStr, err := json.Marshal(context)
-	if err != nil {
-		logger.Errorf("序列化上下文失败: %v", err)
-	} else {
-		logger.Infof("当前上下文: %s", string(contextStr))
-	}
-
-	// 调用 Qwen 客户端进行流式对话
-	responseChan, errorChan := s.qwenClient.StreamChat(stream.Context(), messages, string(contextStr))
-
-	// 处理流式响应
-	var fullResponse strings.Builder
-	for {
-		select {
-		case resp, ok := <-responseChan:
-			if !ok {
-				// 响应完成
-				chatRecord.Response = fullResponse.String()
-				chatRecord.Status = "completed"
-				if err := mysql.GetDB().Save(chatRecord).Error; err != nil {
-					return fmt.Errorf("更新对话记录失败: %v", err)
-				}
-
-				// 发送最终响应
-				return stream.Send(&rag_svr.SendMessageRsp{
-					Code: 0,
-					Msg:  "success",
-					ChatRecord: &rag_svr.ChatRecord{
-						ChatId:      chatRecord.ID,
-						SessionId:   chatRecord.SessionID,
-						UserId:      chatRecord.UserID,
-						Message:     chatRecord.Message,
-						Response:    chatRecord.Response,
-						CreateTime:  chatRecord.CreatedAt.Format(time.RFC3339),
-						MessageType: chatRecord.MessageType,
-						Status:      chatRecord.Status,
-					},
-					SessionInfo: &rag_svr.SessionInfo{
-						SessionId:  session.ID,
-						UserId:     session.UserID,
-						Title:      session.Title,
-						Summary:    session.Summary,
-						Status:     session.Status,
-						CreateTime: session.CreatedAt.Format(time.RFC3339),
-						UpdateTime: session.UpdatedAt.Format(time.RFC3339),
-					},
-				})
-			}
-
-			// 累积完整响应
-			fullResponse.WriteString(resp)
-
-			// 发送部分响应
-			if err := stream.Send(&rag_svr.SendMessageRsp{
-				Code: 0,
-				Msg:  "success",
-				ChatRecord: &rag_svr.ChatRecord{
-					ChatId:      chatRecord.ID,
-					SessionId:   chatRecord.SessionID,
-					UserId:      chatRecord.UserID,
-					Message:     chatRecord.Message,
-					Response:    resp,
-					CreateTime:  chatRecord.CreatedAt.Format(time.RFC3339),
-					MessageType: chatRecord.MessageType,
-					Status:      "streaming",
-				},
-			}); err != nil {
-				return fmt.Errorf("发送流式响应失败: %v", err)
-			}
-
-		case err := <-errorChan:
-			if err != nil {
-				chatRecord.Status = "failed"
-				chatRecord.Response = fmt.Sprintf("生成回复失败: %v", err)
-				if err := mysql.GetDB().Save(chatRecord).Error; err != nil {
-					return fmt.Errorf("更新对话记录失败: %v", err)
-				}
-				return err
-			}
-
-		case <-stream.Context().Done():
-			return stream.Context().Err()
-		}
-	}
 }
 
 func (s *RagServiceImpl) Chat(ctx context.Context, req *rag_svr.SendMessageReq) (resp *rag_svr.SendMessageRsp, err error) {
@@ -898,4 +898,496 @@ func (s *RagServiceImpl) Chat(ctx context.Context, req *rag_svr.SendMessageReq) 
 			}, nil
 		}
 	}
+}
+
+// ListDocument implements the RagServiceImpl interface.
+func (s *RagServiceImpl) ListDocument(ctx context.Context, req *rag_svr.ListDocumentReq) (resp *rag_svr.ListDocumentRsp, err error) {
+	logger.Infof("获取文档列表请求: user_id=%d, page=%d, page_size=%d", req.UserId, req.Page, req.PageSize)
+
+	// 获取用户的文档列表
+	var documents []mysql.Document
+	query := mysql.GetDB().Model(&mysql.Document{}).Where("user_id = ?", req.UserId)
+
+	// 获取总数
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		logger.Errorf("获取文档总数失败: %v", err)
+		return &rag_svr.ListDocumentRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("获取文档总数失败: %v", err),
+		}, nil
+	}
+
+	// 分页
+	offset := int((req.Page - 1) * req.PageSize)
+	if err := query.Order("created_at DESC").
+		Offset(offset).
+		Limit(int(req.PageSize)).
+		Find(&documents).Error; err != nil {
+		logger.Errorf("获取文档列表失败: %v", err)
+		return &rag_svr.ListDocumentRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("获取文档列表失败: %v", err),
+		}, nil
+	}
+
+	logger.Infof("获取文档列表成功: 总数=%d, 当前页=%d", total, len(documents))
+
+	// 构建响应
+	docList := make([]*rag_svr.Document, 0, len(documents))
+	for _, doc := range documents {
+		docList = append(docList, &rag_svr.Document{
+			DocId:      doc.ID,
+			UserId:     doc.UserID,
+			Title:      doc.Title,
+			Content:    doc.Content,
+			Metadata:   doc.Metadata,
+			CreateTime: doc.CreatedAt.Format(time.RFC3339),
+			UpdateTime: doc.UpdatedAt.Format(time.RFC3339),
+		})
+	}
+
+	return &rag_svr.ListDocumentRsp{
+		Code:      0,
+		Msg:       "success",
+		Total:     total,
+		Page:      req.Page,
+		PageSize:  req.PageSize,
+		Documents: docList,
+	}, nil
+}
+
+// GetSession implements the RagServiceImpl interface.
+func (s *RagServiceImpl) GetSession(ctx context.Context, req *rag_svr.GetSessionReq) (resp *rag_svr.GetSessionRsp, err error) {
+	logger.Infof("获取会话详情请求: session_id=%d, user_id=%d", req.SessionId, req.UserId)
+
+	// 获取会话信息
+	var session mysql.Session
+	if err := mysql.GetDB().Model(&mysql.Session{}).First(&session, req.SessionId).Error; err != nil {
+		logger.Errorf("获取会话信息失败: %v", err)
+		return &rag_svr.GetSessionRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("获取会话信息失败: %v", err),
+		}, nil
+	}
+
+	// 验证用户权限
+	if session.UserID != req.UserId {
+		logger.Errorf("用户无权限访问该会话: user_id=%d, session_user_id=%d", req.UserId, session.UserID)
+		return &rag_svr.GetSessionRsp{
+			Code: 1,
+			Msg:  "无权限访问该会话",
+		}, nil
+	}
+
+	// 获取用户状态
+	userState, err := session.GetUserState()
+	if err != nil {
+		logger.Errorf("获取用户状态失败: %v", err)
+		userState = make(map[string]string)
+	}
+
+	// 获取系统状态
+	systemState, err := session.GetSystemState()
+	if err != nil {
+		logger.Errorf("获取系统状态失败: %v", err)
+		systemState = make(map[string]string)
+	}
+
+	// 获取元数据
+	metadata, err := session.GetMetadata()
+	if err != nil {
+		logger.Errorf("获取元数据失败: %v", err)
+		metadata = make(map[string]interface{})
+	}
+
+	// 转换为字符串类型的元数据
+	metadataStr := make(map[string]string)
+	for k, v := range metadata {
+		if str, ok := v.(string); ok {
+			metadataStr[k] = str
+		} else {
+			// 将非字符串类型转换为 JSON 字符串
+			if jsonStr, err := json.Marshal(v); err == nil {
+				metadataStr[k] = string(jsonStr)
+			}
+		}
+	}
+
+	// 获取会话的对话记录
+	var chatRecords []mysql.ChatRecord
+	if err := mysql.GetDB().Model(&mysql.ChatRecord{}).
+		Where("session_id = ?", req.SessionId).
+		Order("created_at ASC").
+		Find(&chatRecords).Error; err != nil {
+		logger.Errorf("获取对话记录失败: %v", err)
+	}
+
+	// 构建响应
+	return &rag_svr.GetSessionRsp{
+		Code: 0,
+		Msg:  "success",
+		SessionInfo: &rag_svr.SessionInfo{
+			SessionId:   session.ID,
+			UserId:      session.UserID,
+			Title:       session.Title,
+			Summary:     session.Summary,
+			Status:      session.Status,
+			CreateTime:  session.CreatedAt.Format(time.RFC3339),
+			UpdateTime:  session.UpdatedAt.Format(time.RFC3339),
+			UserState:   userState,
+			SystemState: systemState,
+			Metadata:    metadataStr,
+			ChatRecords: func() []*rag_svr.ChatRecord {
+				records := make([]*rag_svr.ChatRecord, 0, len(chatRecords))
+				for _, record := range chatRecords {
+					records = append(records, &rag_svr.ChatRecord{
+						ChatId:      record.ID,
+						SessionId:   record.SessionID,
+						UserId:      record.UserID,
+						Message:     record.Message,
+						Response:    record.Response,
+						CreateTime:  record.CreatedAt.Format(time.RFC3339),
+						MessageType: record.MessageType,
+						Status:      record.Status,
+					})
+				}
+				return records
+			}(),
+		},
+	}, nil
+}
+
+// DeleteDocument implements the RagServiceImpl interface.
+func (s *RagServiceImpl) DeleteDocument(ctx context.Context, req *rag_svr.DeleteDocumentReq) (resp *rag_svr.DeleteDocumentRsp, err error) {
+	logger.Infof("删除文档请求: doc_id=%d, user_id=%d", req.DocId, req.UserId)
+
+	// 获取文档信息
+	var doc mysql.Document
+	if err := mysql.GetDB().Model(&mysql.Document{}).First(&doc, req.DocId).Error; err != nil {
+		logger.Errorf("获取文档信息失败: %v", err)
+		return &rag_svr.DeleteDocumentRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("获取文档信息失败: %v", err),
+		}, nil
+	}
+
+	// 验证用户权限
+	if doc.UserID != req.UserId {
+		logger.Errorf("用户无权限删除该文档: user_id=%d, doc_user_id=%d", req.UserId, doc.UserID)
+		return &rag_svr.DeleteDocumentRsp{
+			Code: 1,
+			Msg:  "无权限删除该文档",
+		}, nil
+	}
+
+	// 从 MySQL 中删除文档
+	if err := mysql.GetDB().Delete(&doc).Error; err != nil {
+		logger.Errorf("从 MySQL 删除文档失败: %v", err)
+		return &rag_svr.DeleteDocumentRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("删除文档失败: %v", err),
+		}, nil
+	}
+
+	// 从 MongoDB 中删除文档
+	filter := bson.M{
+		"doc_id":  req.DocId,
+		"user_id": req.UserId,
+	}
+	if _, err := mongodb.DeleteOne(ctx, "documents", filter); err != nil {
+		logger.Errorf("从 MongoDB 删除文档失败: %v", err)
+		// 继续执行，不返回错误，因为 MySQL 中已经删除成功
+	}
+
+	logger.Infof("文档删除成功: doc_id=%d", req.DocId)
+
+	return &rag_svr.DeleteDocumentRsp{
+		Code: 0,
+		Msg:  "success",
+	}, nil
+}
+
+// AddChatRecord 实现添加聊天记录
+func (s *RagServiceImpl) AddChatRecord(ctx context.Context, req *rag_svr.AddChatRecordReq) (resp *rag_svr.AddChatRecordRsp, err error) {
+	logger.Infof("添加聊天记录请求: session_id=%d, user_id=%d", req.SessionId, req.UserId)
+
+	// 创建聊天记录
+	chatRecord := &mysql.ChatRecord{
+		SessionID:     req.SessionId,
+		UserID:        req.UserId,
+		Message:       req.Message,
+		Response:      req.Response,
+		MessageType:   req.MessageType,
+		Status:        "completed",
+		Context:       req.Context,
+		FunctionCalls: req.FunctionCalls,
+		Metadata:      req.Metadata,
+	}
+
+	if err := mysql.GetDB().Create(chatRecord).Error; err != nil {
+		logger.Errorf("创建聊天记录失败: %v", err)
+		return &rag_svr.AddChatRecordRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("创建聊天记录失败: %v", err),
+		}, nil
+	}
+
+	logger.Infof("聊天记录添加成功: chat_id=%d", chatRecord.ID)
+
+	return &rag_svr.AddChatRecordRsp{
+		Code:   0,
+		Msg:    "success",
+		ChatId: chatRecord.ID,
+	}, nil
+}
+
+// GetChatRecords 实现获取聊天记录列表
+func (s *RagServiceImpl) GetChatRecords(ctx context.Context, req *rag_svr.GetChatRecordsReq) (resp *rag_svr.GetChatRecordsRsp, err error) {
+	logger.Infof("获取聊天记录列表请求: session_id=%d, page=%d, page_size=%d", req.SessionId, req.Page, req.PageSize)
+
+	// 获取聊天记录列表
+	var records []mysql.ChatRecord
+	query := mysql.GetDB().Model(&mysql.ChatRecord{}).Where("session_id = ?", req.SessionId)
+
+	// 获取总数
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		logger.Errorf("获取聊天记录总数失败: %v", err)
+		return &rag_svr.GetChatRecordsRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("获取聊天记录总数失败: %v", err),
+		}, nil
+	}
+
+	// 分页
+	offset := int((req.Page - 1) * req.PageSize)
+	if err := query.Order("created_at DESC").
+		Offset(offset).
+		Limit(int(req.PageSize)).
+		Find(&records).Error; err != nil {
+		logger.Errorf("获取聊天记录列表失败: %v", err)
+		return &rag_svr.GetChatRecordsRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("获取聊天记录列表失败: %v", err),
+		}, nil
+	}
+
+	logger.Infof("获取聊天记录列表成功: 总数=%d, 当前页=%d", total, len(records))
+
+	// 构建响应
+	chatRecords := make([]*rag_svr.ChatRecord, 0, len(records))
+	for _, record := range records {
+		chatRecords = append(chatRecords, &rag_svr.ChatRecord{
+			ChatId:      record.ID,
+			SessionId:   record.SessionID,
+			UserId:      record.UserID,
+			Message:     record.Message,
+			Response:    record.Response,
+			MessageType: record.MessageType,
+			Status:      record.Status,
+			CreateTime:  record.CreatedAt.Format(time.RFC3339),
+		})
+	}
+
+	return &rag_svr.GetChatRecordsRsp{
+		Code:     0,
+		Msg:      "success",
+		Total:    total,
+		Page:     req.Page,
+		PageSize: req.PageSize,
+		Records:  chatRecords,
+	}, nil
+}
+
+// AddMemory implements the RagServiceImpl interface.
+func (s *RagServiceImpl) AddMemory(ctx context.Context, req *rag_svr.AddMemoryReq) (resp *rag_svr.AddMemoryRsp, err error) {
+	logger.Infof("添加记忆请求: user_id=%d, memory_type=%s", req.UserId, req.MemoryType)
+
+	// 获取记忆管理器实例
+	memoryManager := memory.GetInstance()
+
+	// 解析 metadata
+	var metadata map[string]interface{}
+	if req.Metadata != "" {
+		if err := json.Unmarshal([]byte(req.Metadata), &metadata); err != nil {
+			logger.Errorf("解析 metadata 失败: %v", err)
+			return &rag_svr.AddMemoryRsp{
+				Code: 1,
+				Msg:  fmt.Sprintf("解析 metadata 失败: %v", err),
+			}, nil
+		}
+	}
+
+	// 添加记忆
+	if err := memoryManager.AddMemory(ctx, req.SessionId, req.UserId, req.Content, req.MemoryType, req.Importance, metadata, nil); err != nil {
+		logger.Errorf("添加记忆失败: %v", err)
+		return &rag_svr.AddMemoryRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("添加记忆失败: %v", err),
+		}, nil
+	}
+
+	logger.Infof("记忆添加成功")
+
+	return &rag_svr.AddMemoryRsp{
+		Code: 0,
+		Msg:  "success",
+	}, nil
+}
+
+// verifyMemoryAccess 验证用户是否有权限访问记忆
+func (s *RagServiceImpl) verifyMemoryAccess(ctx context.Context, memoryID uint64, userID uint64) error {
+	var memory mysql.ChatMemory
+	if err := mysql.GetDB().First(&memory, memoryID).Error; err != nil {
+		return fmt.Errorf("获取记忆失败: %v", err)
+	}
+
+	if memory.UserID != userID {
+		return fmt.Errorf("无权限访问该记忆")
+	}
+
+	return nil
+}
+
+// GetMemory implements the RagServiceImpl interface.
+func (s *RagServiceImpl) GetMemory(ctx context.Context, req *rag_svr.GetMemoryReq) (resp *rag_svr.GetMemoryRsp, err error) {
+	logger.Infof("获取记忆请求: memory_id=%d", req.MemoryId)
+
+	// 验证权限
+	if err := s.verifyMemoryAccess(ctx, req.MemoryId, req.UserId); err != nil {
+		logger.Errorf("权限验证失败: %v", err)
+		return &rag_svr.GetMemoryRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("权限验证失败: %v", err),
+		}, nil
+	}
+
+	// 获取记忆管理器实例
+	memoryManager := memory.GetInstance()
+
+	// 获取记忆
+	memories, err := memoryManager.SearchMemories(ctx, req.UserId, fmt.Sprintf("id:%d", req.MemoryId), 1)
+	if err != nil {
+		logger.Errorf("获取记忆失败: %v", err)
+		return &rag_svr.GetMemoryRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("获取记忆失败: %v", err),
+		}, nil
+	}
+
+	if len(memories) == 0 {
+		return &rag_svr.GetMemoryRsp{
+			Code: 1,
+			Msg:  "记忆不存在",
+		}, nil
+	}
+
+	memory := memories[0]
+	// 将 metadata 转换为 JSON 字符串
+	metadataJSON, err := json.Marshal(memory.Metadata)
+	if err != nil {
+		logger.Errorf("序列化 metadata 失败: %v", err)
+		return &rag_svr.GetMemoryRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("序列化 metadata 失败: %v", err),
+		}, nil
+	}
+
+	return &rag_svr.GetMemoryRsp{
+		Code: 0,
+		Msg:  "success",
+		Memory: &rag_svr.Memory{
+			MemoryId:    memory.ID,
+			SessionId:   memory.SessionID,
+			UserId:      memory.UserID,
+			Content:     memory.Content,
+			MemoryType:  memory.Type,
+			Importance:  memory.Importance,
+			Metadata:    string(metadataJSON),
+			CreateTime:  memory.CreatedAt.Format(time.RFC3339),
+			UpdateTime:  memory.LastAccessed.Format(time.RFC3339),
+			ExpireTime:  memory.ExpiresAt.Format(time.RFC3339),
+			AccessCount: int32(memory.AccessCount),
+		},
+	}, nil
+}
+
+// SearchMemories implements the RagServiceImpl interface.
+func (s *RagServiceImpl) SearchMemories(ctx context.Context, req *rag_svr.SearchMemoriesReq) (resp *rag_svr.SearchMemoriesRsp, err error) {
+	logger.Infof("搜索记忆请求: query=%s, limit=%d", req.Query, req.Limit)
+
+	// 获取记忆管理器实例
+	memoryManager := memory.GetInstance()
+
+	// 搜索记忆
+	memories, err := memoryManager.SearchMemories(ctx, req.UserId, req.Query, int(req.Limit))
+	if err != nil {
+		logger.Errorf("搜索记忆失败: %v", err)
+		return &rag_svr.SearchMemoriesRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("搜索记忆失败: %v", err),
+		}, nil
+	}
+
+	// 转换为响应格式
+	memoryList := make([]*rag_svr.Memory, 0, len(memories))
+	for _, m := range memories {
+		// 将 metadata 转换为 JSON 字符串
+		metadataJSON, err := json.Marshal(m.Metadata)
+		if err != nil {
+			logger.Errorf("序列化 metadata 失败: %v", err)
+			continue
+		}
+
+		memoryList = append(memoryList, &rag_svr.Memory{
+			MemoryId:    m.ID,
+			SessionId:   m.SessionID,
+			UserId:      m.UserID,
+			Content:     m.Content,
+			MemoryType:  m.Type,
+			Importance:  m.Importance,
+			Metadata:    string(metadataJSON),
+			CreateTime:  m.CreatedAt.Format(time.RFC3339),
+			UpdateTime:  m.LastAccessed.Format(time.RFC3339),
+			ExpireTime:  m.ExpiresAt.Format(time.RFC3339),
+			AccessCount: int32(m.AccessCount),
+		})
+	}
+
+	return &rag_svr.SearchMemoriesRsp{
+		Code:     0,
+		Msg:      "success",
+		Memories: memoryList,
+	}, nil
+}
+
+// DeleteMemory implements the RagServiceImpl interface.
+func (s *RagServiceImpl) DeleteMemory(ctx context.Context, req *rag_svr.DeleteMemoryReq) (resp *rag_svr.DeleteMemoryRsp, err error) {
+	logger.Infof("删除记忆请求: memory_id=%d", req.MemoryId)
+
+	// 验证权限
+	if err := s.verifyMemoryAccess(ctx, req.MemoryId, req.UserId); err != nil {
+		logger.Errorf("权限验证失败: %v", err)
+		return &rag_svr.DeleteMemoryRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("权限验证失败: %v", err),
+		}, nil
+	}
+
+	// 从数据库中删除记忆
+	if err := mysql.GetDB().Where("id = ?", req.MemoryId).Delete(&mysql.ChatMemory{}).Error; err != nil {
+		logger.Errorf("删除记忆失败: %v", err)
+		return &rag_svr.DeleteMemoryRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("删除记忆失败: %v", err),
+		}, nil
+	}
+
+	logger.Infof("记忆删除成功")
+
+	return &rag_svr.DeleteMemoryRsp{
+		Code: 0,
+		Msg:  "success",
+	}, nil
 }

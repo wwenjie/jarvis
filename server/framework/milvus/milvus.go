@@ -5,6 +5,7 @@ package milvus
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"server/framework/config"
@@ -14,6 +15,24 @@ import (
 )
 
 var milvusClient client.Client
+
+// MilvusStats 用于记录 Milvus 操作统计信息
+type MilvusStats struct {
+	SearchLatency time.Duration
+	InsertLatency time.Duration
+	DeleteLatency time.Duration
+	SearchCount   int64
+	InsertCount   int64
+	DeleteCount   int64
+	ErrorCount    int64
+}
+
+var stats MilvusStats
+
+// GetStats 获取统计信息
+func GetStats() MilvusStats {
+	return stats
+}
 
 // InitMilvus 初始化 Milvus 客户端
 func InitMilvus() error {
@@ -194,5 +213,68 @@ func Close() error {
 	if milvusClient != nil {
 		return milvusClient.Close()
 	}
+	return nil
+}
+
+// BatchInsertVectors 批量插入向量
+func BatchInsertVectors(ctx context.Context, collectionName string, ids []int64, vectors [][]float32) error {
+	start := time.Now()
+	defer func() {
+		stats.InsertLatency = time.Since(start)
+		stats.InsertCount++
+	}()
+
+	// 准备数据
+	idColumn := entity.NewColumnInt64("id", ids)
+	vectorColumn := entity.NewColumnFloatVector("vector", len(vectors[0]), vectors)
+
+	// 插入数据
+	_, err := milvusClient.Insert(ctx, collectionName, "", idColumn, vectorColumn)
+	if err != nil {
+		stats.ErrorCount++
+		return fmt.Errorf("批量插入向量失败: %v", err)
+	}
+
+	// 刷新数据
+	err = milvusClient.Flush(ctx, collectionName, false)
+	if err != nil {
+		stats.ErrorCount++
+		return fmt.Errorf("刷新数据失败: %v", err)
+	}
+
+	return nil
+}
+
+// BatchDeleteVectors 批量删除向量
+func BatchDeleteVectors(ctx context.Context, collectionName string, ids []int64) error {
+	start := time.Now()
+	defer func() {
+		stats.DeleteLatency = time.Since(start)
+		stats.DeleteCount++
+	}()
+
+	// 构建删除条件
+	expr := "id in [" + strings.Join(func() []string {
+		strIDs := make([]string, len(ids))
+		for i, id := range ids {
+			strIDs[i] = fmt.Sprintf("%d", id)
+		}
+		return strIDs
+	}(), ",") + "]"
+
+	// 删除数据
+	err := milvusClient.Delete(ctx, collectionName, "", expr)
+	if err != nil {
+		stats.ErrorCount++
+		return fmt.Errorf("批量删除向量失败: %v", err)
+	}
+
+	// 刷新数据
+	err = milvusClient.Flush(ctx, collectionName, false)
+	if err != nil {
+		stats.ErrorCount++
+		return fmt.Errorf("刷新数据失败: %v", err)
+	}
+
 	return nil
 }
