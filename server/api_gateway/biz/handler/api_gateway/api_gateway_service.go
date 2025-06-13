@@ -222,64 +222,6 @@ func EndSession(ctx context.Context, c *app.RequestContext) {
 	})
 }
 
-// Chat .
-// @router /chat [POST]
-func Chat(ctx context.Context, c *app.RequestContext) {
-	var err error
-	var req api_gateway.ChatReq
-	err = c.BindAndValidate(&req)
-	if err != nil {
-		c.String(consts.StatusBadRequest, err.Error())
-		return
-	}
-
-	// 从上下文中获取客户端
-	client, exists := c.Get("rag_svr_client")
-	if !exists {
-		c.JSON(consts.StatusInternalServerError, utils.H{
-			"error": "客户端未初始化",
-		})
-		return
-	}
-
-	ragSvrClient := client.(ragservice.Client)
-
-	// 调用 rag_svr 的 SendMessage 方法
-	resp, err := ragSvrClient.SendMessage(ctx, &rag_svr.SendMessageReq{
-		SessionId:   req.SessionId,
-		UserId:      req.UserId,
-		Message:     req.Message,
-		MessageType: req.MessageType,
-	})
-	if err != nil {
-		c.JSON(consts.StatusInternalServerError, utils.H{
-			"error": fmt.Sprintf("调用服务失败: %v", err),
-		})
-		return
-	}
-
-	// 构建响应
-	chatRecords := make([]map[string]interface{}, 0)
-	for _, record := range resp.SessionInfo.ChatRecords {
-		chatRecords = append(chatRecords, map[string]interface{}{
-			"chat_id":      record.ChatId,
-			"message":      record.Message,
-			"response":     record.Response,
-			"create_time":  record.CreateTime,
-			"message_type": record.MessageType,
-		})
-	}
-
-	c.JSON(consts.StatusOK, utils.H{
-		"code":         resp.Code,
-		"msg":          resp.Msg,
-		"response":     resp.ChatRecord.Response,
-		"chat_records": chatRecords,
-		"user_state":   resp.SessionInfo.UserState,
-		"system_state": resp.SessionInfo.SystemState,
-	})
-}
-
 // AddDocument .
 // @router /document/add [POST]
 func AddDocument(ctx context.Context, c *app.RequestContext) {

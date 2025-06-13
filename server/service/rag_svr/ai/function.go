@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	"server/framework/id_generator"
 	"server/framework/logger"
 	"server/framework/milvus"
 	"server/framework/mysql"
@@ -198,8 +199,15 @@ func (f *SetReminderFunction) Execute(ctx context.Context, args map[string]inter
 		return nil, fmt.Errorf("解析提醒时间失败: %v", err)
 	}
 
+	reminderID := id_generator.GetInstance().GetReminderID()
+	if reminderID == 0 {
+		logger.Errorf("获取提醒ID失败")
+		return nil, fmt.Errorf("获取提醒ID失败")
+	}
+
 	// 创建提醒记录
 	reminder := &mysql.Reminder{
+		ID:         reminderID,
 		Content:    content,
 		RemindTime: reminderTime,
 		Status:     "pending",

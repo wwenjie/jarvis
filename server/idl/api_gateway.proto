@@ -92,24 +92,6 @@ message EndSessionRsp {
     string msg = 2;
 }
 
-// 对话管理
-message ChatReq {
-    uint64 session_id = 1[(api.body) = "session_id", (api.vd) = "$>0"];
-    uint64 user_id = 2[(api.body) = "user_id", (api.vd) = "$>0"];
-    string message = 3[(api.body) = "message", (api.vd) = "$!=''"];
-    string message_type = 4[(api.body) = "message_type"];  // text, image, etc.
-    string context = 5[(api.body) = "context"];  // 添加文档上下文
-}
-
-message ChatRsp {
-    uint32 code = 1;
-    string msg = 2;
-    string response = 3;
-    repeated rag_svr.ChatRecord chat_records = 4;  // 使用完整的包名
-    map<string, string> user_state = 5;    // 用户状态
-    map<string, string> system_state = 6;  // 系统状态
-}
-
 // 知识库管理
 message AddDocumentReq {
     uint64 user_id = 1[(api.body) = "user_id", (api.vd) = "$>0"];

@@ -285,8 +285,8 @@ async def upload_document(file: UploadFile = File(...)):
             raise HTTPException(status_code=500, detail="添加文档到知识库失败")
             
         result = response.json()
-        if result["code"] != 0:
-            raise HTTPException(status_code=500, detail=result["msg"])
+        if result.get("code", 0) != 0:
+            raise HTTPException(status_code=500, detail=result.get("msg", "未知错误"))
             
         doc_id = result["doc_id"]
     
@@ -314,10 +314,10 @@ async def list_documents():
                 raise HTTPException(status_code=500, detail="获取文档列表失败")
                 
             result = response.json()
-            if result["code"] != 0:
-                raise HTTPException(status_code=500, detail=result["msg"])
+            if result.get("code", 0) != 0:
+                raise HTTPException(status_code=500, detail=result.get("msg", "未知错误"))
                 
-            return [{"id": str(doc["doc_id"]), "name": doc["title"]} for doc in result["documents"]]
+            return [{"id": str(doc["doc_id"]), "name": doc["title"]} for doc in result.get("documents", [])]
             
     except Exception as e:
         print(f"获取文档列表失败: {str(e)}")
@@ -338,8 +338,8 @@ async def delete_document(doc_id: str):
                 raise HTTPException(status_code=500, detail="删除文档失败")
                 
             result = response.json()
-            if result["code"] != 0:
-                raise HTTPException(status_code=500, detail=result["msg"])
+            if result.get("code", 0) != 0:
+                raise HTTPException(status_code=500, detail=result.get("msg", "未知错误"))
             
             return {"message": "删除成功"}
             
@@ -419,10 +419,10 @@ async def process_function_call(func_call: dict, api_gateway_base_url: str) -> d
                 # 确保参数类型正确
                 args = func_call["arguments"]
                 request_data = {
-                    "user_id": int(args["user_id"]),  # 确保是整数
-                    "content": str(args["content"]),  # 确保是字符串
-                    "memory_type": str(args["memory_type"]),  # 确保是字符串
-                    "importance": float(args["importance"]),  # 确保是浮点数
+                    "user_id": 1,  # 使用固定的用户ID
+                    "content": str(args["content"]),
+                    "memory_type": str(args["memory_type"]),
+                    "importance": float(args["importance"]),
                 }
                 # 如果有 metadata，转换为 JSON 字符串
                 if "metadata" in args:
@@ -436,7 +436,8 @@ async def process_function_call(func_call: dict, api_gateway_base_url: str) -> d
                 print(f"添加记忆响应: {response.status_code} - {response.text}")  # 添加日志
                 if response.status_code == 200:
                     result = response.json()
-                    if result["code"] == 0:
+                    # 兼容不同的响应格式
+                    if result.get("code", 0) == 0 or result.get("msg") == "success":
                         return {
                             "name": "add_memory",
                             "result": "success",
@@ -446,7 +447,7 @@ async def process_function_call(func_call: dict, api_gateway_base_url: str) -> d
                         return {
                             "name": "add_memory",
                             "result": "error",
-                            "error": result.get("msg")
+                            "error": result.get("msg", "未知错误")
                         }
                 else:
                     return {
@@ -538,8 +539,8 @@ async def process_stream_request(query: str, session_id: str = None):
             if response.status_code != 200:
                 raise HTTPException(status_code=500, detail="创建会话失败")
             result = response.json()
-            if result["code"] != 0:
-                raise HTTPException(status_code=500, detail=result["msg"])
+            if result.get("code", 0) != 0:
+                raise HTTPException(status_code=500, detail=result.get("msg", "未知错误"))
             session_id = str(result["session_id"])
             print(f"新会话创建成功: session_id={session_id}")
 
@@ -566,8 +567,8 @@ async def process_stream_request(query: str, session_id: str = None):
                 raise HTTPException(status_code=500, detail=f"搜索文档失败: HTTP {response.status_code}")
                 
             result = response.json()
-            if result["code"] != 0:
-                raise HTTPException(status_code=500, detail=f"搜索文档失败: {result['msg']}")
+            if result.get("code", 0) != 0:
+                raise HTTPException(status_code=500, detail=f"搜索文档失败: {result.get('msg', '未知错误')}")
                 
             documents = result.get("results", [])
             print(f"检索到 {len(documents)} 个相关文档")
@@ -698,10 +699,10 @@ async def process_stream_request(query: str, session_id: str = None):
                     print(f"保存聊天记录失败: HTTP {response.status_code}")
                 else:
                     result = response.json()
-                    if result["code"] != 0:
-                        print(f"保存聊天记录失败: {result['msg']}")
+                    if result.get("code", 0) != 0:
+                        print(f"保存聊天记录失败: {result.get('msg', '未知错误')}")
                     else:
-                        print(f"聊天记录保存成功: chat_id={result['chat_id']}")
+                        print(f"聊天记录保存成功: chat_id={result.get('chat_id')}")
         except Exception as e:
             print(f"保存聊天记录时发生错误: {str(e)}")
     
@@ -751,8 +752,8 @@ async def get_chat_history():
                 raise HTTPException(status_code=500, detail=f"获取会话列表失败: HTTP {response.status_code}")
                 
             result = response.json()
-            if result["code"] != 0:
-                raise HTTPException(status_code=500, detail=f"获取会话列表失败: {result['msg']}")
+            if result.get("code", 0) != 0:
+                raise HTTPException(status_code=500, detail=f"获取会话列表失败: {result.get('msg', '未知错误')}")
                 
             sessions = []
             for session in result.get("sessions", []):  # 修改为 sessions
@@ -784,11 +785,11 @@ async def get_session(session_id: str):
                 raise HTTPException(status_code=500, detail="获取会话详情失败")
                 
             result = response.json()
-            if result["code"] != 0:
-                raise HTTPException(status_code=500, detail=result["msg"])
+            if result.get("code", 0) != 0:
+                raise HTTPException(status_code=500, detail=result.get("msg", "未知错误"))
                 
             messages = []
-            for record in result["session_info"]["chat_records"]:
+            for record in result.get("session_info", {}).get("chat_records", []):
                 messages.append({
                     "role": "user" if record["message_type"] == "text" else "bot",
                     "content": record["message"] if record["message_type"] == "text" else record["response"]
@@ -816,8 +817,8 @@ async def delete_session(session_id: str):
                 raise HTTPException(status_code=500, detail="删除会话失败")
                 
             result = response.json()
-            if result["code"] != 0:
-                raise HTTPException(status_code=500, detail=result["msg"])
+            if result.get("code", 0) != 0:
+                raise HTTPException(status_code=500, detail=result.get("msg", "未知错误"))
             
             return {"message": "会话已删除"}
             

@@ -491,105 +491,6 @@ func (x *CreateSessionRsp) GetSessionInfo() *SessionInfo {
 	return nil
 }
 
-// 发送消息请求
-type SendMessageReq struct {
-	SeqId       uint32 `protobuf:"varint,1,opt,name=seq_id" json:"seq_id,omitempty"`
-	SessionId   uint64 `protobuf:"varint,2,opt,name=session_id" json:"session_id,omitempty"`
-	UserId      uint64 `protobuf:"varint,3,opt,name=user_id" json:"user_id,omitempty"`
-	Message     string `protobuf:"bytes,4,opt,name=message" json:"message,omitempty"`
-	MessageType string `protobuf:"bytes,5,opt,name=message_type" json:"message_type,omitempty"`
-	Context     string `protobuf:"bytes,6,opt,name=context" json:"context,omitempty"` // 添加文档上下文
-}
-
-func (x *SendMessageReq) Reset() { *x = SendMessageReq{} }
-
-func (x *SendMessageReq) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
-
-func (x *SendMessageReq) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
-
-func (x *SendMessageReq) GetSeqId() uint32 {
-	if x != nil {
-		return x.SeqId
-	}
-	return 0
-}
-
-func (x *SendMessageReq) GetSessionId() uint64 {
-	if x != nil {
-		return x.SessionId
-	}
-	return 0
-}
-
-func (x *SendMessageReq) GetUserId() uint64 {
-	if x != nil {
-		return x.UserId
-	}
-	return 0
-}
-
-func (x *SendMessageReq) GetMessage() string {
-	if x != nil {
-		return x.Message
-	}
-	return ""
-}
-
-func (x *SendMessageReq) GetMessageType() string {
-	if x != nil {
-		return x.MessageType
-	}
-	return ""
-}
-
-func (x *SendMessageReq) GetContext() string {
-	if x != nil {
-		return x.Context
-	}
-	return ""
-}
-
-type SendMessageRsp struct {
-	Code        uint32       `protobuf:"varint,1,opt,name=code" json:"code,omitempty"`
-	Msg         string       `protobuf:"bytes,2,opt,name=msg" json:"msg,omitempty"`
-	ChatRecord  *ChatRecord  `protobuf:"bytes,3,opt,name=chat_record" json:"chat_record,omitempty"`
-	SessionInfo *SessionInfo `protobuf:"bytes,4,opt,name=session_info" json:"session_info,omitempty"` // 更新后的会话信息
-}
-
-func (x *SendMessageRsp) Reset() { *x = SendMessageRsp{} }
-
-func (x *SendMessageRsp) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
-
-func (x *SendMessageRsp) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
-
-func (x *SendMessageRsp) GetCode() uint32 {
-	if x != nil {
-		return x.Code
-	}
-	return 0
-}
-
-func (x *SendMessageRsp) GetMsg() string {
-	if x != nil {
-		return x.Msg
-	}
-	return ""
-}
-
-func (x *SendMessageRsp) GetChatRecord() *ChatRecord {
-	if x != nil {
-		return x.ChatRecord
-	}
-	return nil
-}
-
-func (x *SendMessageRsp) GetSessionInfo() *SessionInfo {
-	if x != nil {
-		return x.SessionInfo
-	}
-	return nil
-}
-
 // 结束会话请求
 type EndSessionReq struct {
 	SeqId     uint32 `protobuf:"varint,1,opt,name=seq_id" json:"seq_id,omitempty"`
@@ -1880,7 +1781,6 @@ type RagService interface {
 	EndSession(ctx context.Context, req *EndSessionReq) (res *EndSessionRsp, err error)
 	GetSessionList(ctx context.Context, req *GetSessionListReq) (res *GetSessionListRsp, err error)
 	CleanInactiveSessions(ctx context.Context, req *CleanInactiveSessionsReq) (res *CleanInactiveSessionsRsp, err error)
-	SendMessage(ctx context.Context, req *SendMessageReq) (res *SendMessageRsp, err error)
 	AddDocument(ctx context.Context, req *AddDocumentReq) (res *AddDocumentRsp, err error)
 	DeleteDocument(ctx context.Context, req *DeleteDocumentReq) (res *DeleteDocumentRsp, err error)
 	SearchDocument(ctx context.Context, req *SearchDocumentReq) (res *SearchDocumentRsp, err error)

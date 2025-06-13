@@ -19,7 +19,6 @@ type Client interface {
 	EndSession(ctx context.Context, Req *rag_svr.EndSessionReq, callOptions ...callopt.Option) (r *rag_svr.EndSessionRsp, err error)
 	GetSessionList(ctx context.Context, Req *rag_svr.GetSessionListReq, callOptions ...callopt.Option) (r *rag_svr.GetSessionListRsp, err error)
 	CleanInactiveSessions(ctx context.Context, Req *rag_svr.CleanInactiveSessionsReq, callOptions ...callopt.Option) (r *rag_svr.CleanInactiveSessionsRsp, err error)
-	SendMessage(ctx context.Context, Req *rag_svr.SendMessageReq, callOptions ...callopt.Option) (r *rag_svr.SendMessageRsp, err error)
 	AddDocument(ctx context.Context, Req *rag_svr.AddDocumentReq, callOptions ...callopt.Option) (r *rag_svr.AddDocumentRsp, err error)
 	DeleteDocument(ctx context.Context, Req *rag_svr.DeleteDocumentReq, callOptions ...callopt.Option) (r *rag_svr.DeleteDocumentRsp, err error)
 	SearchDocument(ctx context.Context, Req *rag_svr.SearchDocumentReq, callOptions ...callopt.Option) (r *rag_svr.SearchDocumentRsp, err error)
@@ -99,11 +98,6 @@ func (p *kRagServiceClient) GetSessionList(ctx context.Context, Req *rag_svr.Get
 func (p *kRagServiceClient) CleanInactiveSessions(ctx context.Context, Req *rag_svr.CleanInactiveSessionsReq, callOptions ...callopt.Option) (r *rag_svr.CleanInactiveSessionsRsp, err error) {
 	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
 	return p.kClient.CleanInactiveSessions(ctx, Req)
-}
-
-func (p *kRagServiceClient) SendMessage(ctx context.Context, Req *rag_svr.SendMessageReq, callOptions ...callopt.Option) (r *rag_svr.SendMessageRsp, err error) {
-	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
-	return p.kClient.SendMessage(ctx, Req)
 }
 
 func (p *kRagServiceClient) AddDocument(ctx context.Context, Req *rag_svr.AddDocumentReq, callOptions ...callopt.Option) (r *rag_svr.AddDocumentRsp, err error) {

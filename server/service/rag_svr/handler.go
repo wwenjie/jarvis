@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"server/framework/id_generator"
@@ -50,8 +49,18 @@ func (s *RagServiceImpl) Test2(ctx context.Context, req *rag_svr.Test2Req) (resp
 func (s *RagServiceImpl) CreateUser(ctx context.Context, req *rag_svr.CreateUserReq) (resp *rag_svr.CreateUserRsp, err error) {
 	logger.Infof("创建用户请求: username=%s, email=%s", req.Username, req.Email)
 
+	userID := id_generator.GetInstance().GetUserID()
+	if userID == 0 {
+		logger.Errorf("获取用户ID失败")
+		return &rag_svr.CreateUserRsp{
+			Code: 1,
+			Msg:  "获取用户ID失败",
+		}, nil
+	}
+
 	// 创建用户
 	user := &mysql.User{
+		ID:       userID,
 		Username: req.Username,
 		Email:    req.Email,
 		Password: req.Password, // 注意：实际应用中应该对密码进行加密
@@ -85,8 +94,17 @@ func (s *RagServiceImpl) CreateUser(ctx context.Context, req *rag_svr.CreateUser
 func (s *RagServiceImpl) CreateSession(ctx context.Context, req *rag_svr.CreateSessionReq) (resp *rag_svr.CreateSessionRsp, err error) {
 	logger.Infof("创建会话请求: user_id=%d", req.UserId)
 
+	sessionID := id_generator.GetInstance().GetSessionID()
+	if sessionID == 0 {
+		logger.Errorf("获取会话ID失败")
+		return &rag_svr.CreateSessionRsp{
+			Code: 1,
+			Msg:  "获取会话ID失败",
+		}, nil
+	}
 	// 创建会话
-	session := &mysql.Session{
+	session := &mysql.ChatSession{
+		ID:             sessionID,
 		UserID:         req.UserId,
 		Status:         "active",
 		LastActiveTime: time.Now(),
@@ -186,7 +204,7 @@ func (s *RagServiceImpl) EndSession(ctx context.Context, req *rag_svr.EndSession
 	logger.Infof("结束会话请求: session_id=%d", req.SessionId)
 
 	// 更新会话状态
-	if err := mysql.GetDB().Table("chat_session").Model(&mysql.Session{}).
+	if err := mysql.GetDB().Table("chat_session").Model(&mysql.ChatSession{}).
 		Where("id = ?", req.SessionId).
 		Update("status", "closed").Error; err != nil {
 		logger.Errorf("结束会话失败: %v", err)
@@ -201,250 +219,6 @@ func (s *RagServiceImpl) EndSession(ctx context.Context, req *rag_svr.EndSession
 	return &rag_svr.EndSessionRsp{
 		Code: 0,
 		Msg:  "success",
-	}, nil
-}
-
-// SendMessage 实现与 Qwen 大模型的对话
-func (s *RagServiceImpl) SendMessage(ctx context.Context, req *rag_svr.SendMessageReq) (resp *rag_svr.SendMessageRsp, err error) {
-	// 获取会话信息
-	var session mysql.Session
-	if err := mysql.GetDB().Table("chat_session").Model(&mysql.Session{}).First(&session, req.SessionId).Error; err != nil {
-		return &rag_svr.SendMessageRsp{
-			Code: 1,
-			Msg:  fmt.Sprintf("获取会话信息失败: %v", err),
-		}, nil
-	}
-
-	// 获取用户状态和系统状态
-	userState, err := session.GetUserState()
-	if err != nil {
-		return &rag_svr.SendMessageRsp{
-			Code: 1,
-			Msg:  fmt.Sprintf("获取用户状态失败: %v", err),
-		}, nil
-	}
-
-	systemState, err := session.GetSystemState()
-	if err != nil {
-		return &rag_svr.SendMessageRsp{
-			Code: 1,
-			Msg:  fmt.Sprintf("获取系统状态失败: %v", err),
-		}, nil
-	}
-
-	// 获取最近的对话记录作为上下文
-	var recentRecords []mysql.ChatRecord
-	if err := mysql.GetDB().Table("chat_record").Model(&mysql.ChatRecord{}).Where("session_id = ?", req.SessionId).
-		Order("created_at DESC").
-		Limit(10).
-		Find(&recentRecords).Error; err != nil {
-		return &rag_svr.SendMessageRsp{
-			Code: 1,
-			Msg:  fmt.Sprintf("获取历史记录失败: %v", err),
-		}, nil
-	}
-
-	// 搜索相关记忆
-	memoryManager := memory.GetInstance()
-	relatedMemories, err := memoryManager.SearchMemories(ctx, req.Message, 5)
-	if err != nil {
-		logger.Errorf("搜索相关记忆失败: %v", err)
-	}
-
-	// 分析用户意图和情感
-	intent, err := ai.AnalyzeIntent(req.Message)
-	if err != nil {
-		logger.Errorf("分析用户意图失败: %v", err)
-	} else {
-		userState["last_intent"] = intent.Intent
-		userState["intent_confidence"] = fmt.Sprintf("%.2f", intent.Confidence)
-	}
-
-	sentiment, err := ai.AnalyzeSentiment(req.Message)
-	if err != nil {
-		logger.Errorf("分析用户情感失败: %v", err)
-	} else {
-		userState["last_sentiment"] = sentiment.Sentiment
-		userState["sentiment_confidence"] = fmt.Sprintf("%.2f", sentiment.Confidence)
-	}
-
-	// 根据意图和情感调整系统状态
-	if intent != nil {
-		switch intent.Intent {
-		case ai.IntentTypeQuestion:
-			systemState["response_mode"] = "informative"
-		case ai.IntentTypeCommand:
-			systemState["response_mode"] = "action"
-		case ai.IntentTypeChat:
-			systemState["response_mode"] = "conversational"
-		case ai.IntentTypeTask:
-			systemState["response_mode"] = "task-oriented"
-		}
-	}
-
-	if sentiment != nil {
-		switch sentiment.Sentiment {
-		case ai.SentimentPositive:
-			systemState["tone"] = "friendly"
-		case ai.SentimentNeutral:
-			systemState["tone"] = "professional"
-		case ai.SentimentNegative:
-			systemState["tone"] = "empathetic"
-		}
-	}
-
-	// 更新会话状态
-	if err := session.SetUserState(userState); err != nil {
-		logger.Errorf("更新用户状态失败: %v", err)
-	}
-	if err := session.SetSystemState(systemState); err != nil {
-		logger.Errorf("更新系统状态失败: %v", err)
-	}
-	if err := mysql.GetDB().Table("chat_session").Save(&session).Error; err != nil {
-		logger.Errorf("保存会话状态失败: %v", err)
-	}
-
-	// 构建上下文
-	context := map[string]interface{}{
-		"session_summary":  session.Summary,
-		"user_state":       userState,
-		"system_state":     systemState,
-		"recent_messages":  recentRecords,
-		"related_memories": relatedMemories,
-		"intent":           intent,
-		"sentiment":        sentiment,
-	}
-
-	// 将 context 转换为 JSON 字符串
-	contextJSON, err := json.Marshal(context)
-	if err != nil {
-		logger.Errorf("序列化上下文失败: %v", err)
-		return &rag_svr.SendMessageRsp{
-			Code: 1,
-			Msg:  fmt.Sprintf("序列化上下文失败: %v", err),
-		}, nil
-	}
-
-	// 初始化 function_calls 和 metadata
-	functionCallsJSON, err := json.Marshal([]interface{}{})
-	if err != nil {
-		logger.Errorf("序列化 function_calls 失败: %v", err)
-		return &rag_svr.SendMessageRsp{
-			Code: 1,
-			Msg:  fmt.Sprintf("序列化 function_calls 失败: %v", err),
-		}, nil
-	}
-
-	metadataJSON, err := json.Marshal(map[string]interface{}{})
-	if err != nil {
-		logger.Errorf("序列化 metadata 失败: %v", err)
-		return &rag_svr.SendMessageRsp{
-			Code: 1,
-			Msg:  fmt.Sprintf("序列化 metadata 失败: %v", err),
-		}, nil
-	}
-
-	// 创建对话记录
-	chatRecord := &mysql.ChatRecord{
-		SessionID:     req.SessionId,
-		UserID:        req.UserId,
-		Message:       req.Message,
-		MessageType:   req.MessageType,
-		Status:        "pending",
-		Context:       string(contextJSON),
-		FunctionCalls: string(functionCallsJSON),
-		Metadata:      string(metadataJSON),
-	}
-
-	if err := mysql.GetDB().Table("chat_record").Create(chatRecord).Error; err != nil {
-		logger.Errorf("创建对话记录失败: %v", err)
-		return &rag_svr.SendMessageRsp{
-			Code: 1,
-			Msg:  fmt.Sprintf("创建对话记录失败: %v", err),
-		}, nil
-	}
-
-	// 提取并存储记忆
-	if intent != nil {
-		// 根据意图类型设置记忆类型和重要性
-		var memoryType string
-		var importance float64
-		switch intent.Intent {
-		case ai.IntentTypeQuestion:
-			memoryType = memory.MemoryTypeFact
-			importance = 0.7
-		case ai.IntentTypeCommand:
-			memoryType = memory.MemoryTypeContext
-			importance = 0.8
-		case ai.IntentTypeChat:
-			memoryType = memory.MemoryTypeContext
-			importance = 0.5
-		case ai.IntentTypeTask:
-			memoryType = memory.MemoryTypeContext
-			importance = 0.9
-		}
-
-		// 设置记忆元数据
-		metadata := map[string]interface{}{
-			"intent":               intent.Intent,
-			"intent_confidence":    intent.Confidence,
-			"entities":             intent.Entities,
-			"sentiment":            sentiment.Sentiment,
-			"sentiment_confidence": sentiment.Confidence,
-			"emotions":             sentiment.Emotions,
-		}
-
-		// 添加记忆
-		if err := memoryManager.AddMemory(ctx, req.SessionId, req.UserId, req.Message, memoryType, importance, metadata, nil); err != nil {
-			logger.Errorf("添加记忆失败: %v", err)
-		}
-	}
-
-	// 获取元数据
-	metadata, err := session.GetMetadata()
-	if err != nil {
-		logger.Errorf("获取元数据失败: %v", err)
-		metadata = make(map[string]interface{})
-	}
-
-	// 转换为字符串类型的元数据
-	metadataStr := make(map[string]string)
-	for k, v := range metadata {
-		if str, ok := v.(string); ok {
-			metadataStr[k] = str
-		} else {
-			// 将非字符串类型转换为 JSON 字符串
-			if jsonStr, err := json.Marshal(v); err == nil {
-				metadataStr[k] = string(jsonStr)
-			}
-		}
-	}
-
-	// 构建响应
-	return &rag_svr.SendMessageRsp{
-		Code: 0,
-		Msg:  "success",
-		ChatRecord: &rag_svr.ChatRecord{
-			ChatId:      chatRecord.ID,
-			SessionId:   chatRecord.SessionID,
-			UserId:      chatRecord.UserID,
-			Message:     chatRecord.Message,
-			MessageType: chatRecord.MessageType,
-			Status:      chatRecord.Status,
-			CreateTime:  chatRecord.CreatedAt.Format(time.RFC3339),
-		},
-		SessionInfo: &rag_svr.SessionInfo{
-			SessionId:   session.ID,
-			UserId:      session.UserID,
-			Title:       session.Title,
-			Summary:     session.Summary,
-			Status:      session.Status,
-			CreateTime:  session.CreatedAt.Format(time.RFC3339),
-			UpdateTime:  session.UpdatedAt.Format(time.RFC3339),
-			UserState:   userState,
-			SystemState: systemState,
-			Metadata:    metadataStr,
-		},
 	}, nil
 }
 
@@ -716,8 +490,8 @@ func (s *RagServiceImpl) GetSessionList(ctx context.Context, req *rag_svr.GetSes
 		req.UserId, req.Status, req.Page, req.PageSize)
 
 	// 获取用户的会话列表
-	var sessions []mysql.Session
-	query := mysql.GetDB().Table("chat_session").Model(&mysql.Session{}).Where("user_id = ?", req.UserId)
+	var sessions []mysql.ChatSession
+	query := mysql.GetDB().Table("chat_session").Model(&mysql.ChatSession{}).Where("user_id = ?", req.UserId)
 
 	// 根据状态筛选
 	if req.Status != "" {
@@ -826,7 +600,7 @@ func (s *RagServiceImpl) CleanInactiveSessions(ctx context.Context, req *rag_svr
 	inactiveTime := time.Now().Add(-time.Duration(req.InactiveDays) * 24 * time.Hour)
 
 	// 更新会话状态
-	result := mysql.GetDB().Table("chat_session").Model(&mysql.Session{}).
+	result := mysql.GetDB().Table("chat_session").Model(&mysql.ChatSession{}).
 		Where("status = ? AND last_active_time < ?", "active", inactiveTime).
 		Update("status", "archived")
 
@@ -845,61 +619,6 @@ func (s *RagServiceImpl) CleanInactiveSessions(ctx context.Context, req *rag_svr
 		Msg:          "success",
 		CleanedCount: result.RowsAffected,
 	}, nil
-}
-
-func (s *RagServiceImpl) Chat(ctx context.Context, req *rag_svr.SendMessageReq) (resp *rag_svr.SendMessageRsp, err error) {
-	// 获取上下文信息
-	contextJSON, err := s.qwenClient.GetUserHistory(ctx, fmt.Sprintf("%d", req.UserId))
-	if err != nil {
-		logger.Errorf("获取用户历史记录失败: %v", err)
-		// 继续执行，不返回错误
-	}
-
-	// 构建消息
-	messages := []ai.QwenMessage{
-		{
-			Role:    "user",
-			Content: req.Message,
-		},
-	}
-
-	// 获取流式响应
-	responseChan, errorChan := s.qwenClient.StreamChat(ctx, messages, strings.Join(contextJSON, "\n"))
-
-	// 处理响应
-	var responseBuilder strings.Builder
-	for {
-		select {
-		case text, ok := <-responseChan:
-			if !ok {
-				// 通道已关闭，返回结果
-				return &rag_svr.SendMessageRsp{
-					Code: 0,
-					Msg:  "success",
-					SessionInfo: &rag_svr.SessionInfo{
-						ChatRecords: []*rag_svr.ChatRecord{
-							{
-								Message: responseBuilder.String(),
-							},
-						},
-					},
-				}, nil
-			}
-			responseBuilder.WriteString(text)
-		case err := <-errorChan:
-			if err != nil {
-				return &rag_svr.SendMessageRsp{
-					Code: 1,
-					Msg:  fmt.Sprintf("聊天失败: %v", err),
-				}, nil
-			}
-		case <-ctx.Done():
-			return &rag_svr.SendMessageRsp{
-				Code: 1,
-				Msg:  "请求超时",
-			}, nil
-		}
-	}
 }
 
 // ListDocument implements the RagServiceImpl interface.
@@ -964,8 +683,8 @@ func (s *RagServiceImpl) GetSession(ctx context.Context, req *rag_svr.GetSession
 	logger.Infof("获取会话详情请求: session_id=%d, user_id=%d", req.SessionId, req.UserId)
 
 	// 获取会话信息
-	var session mysql.Session
-	if err := mysql.GetDB().Table("chat_session").Model(&mysql.Session{}).First(&session, req.SessionId).Error; err != nil {
+	var session mysql.ChatSession
+	if err := mysql.GetDB().Table("chat_session").Model(&mysql.ChatSession{}).First(&session, req.SessionId).Error; err != nil {
 		logger.Errorf("获取会话信息失败: %v", err)
 		return &rag_svr.GetSessionRsp{
 			Code: 1,
@@ -1114,8 +833,18 @@ func (s *RagServiceImpl) DeleteDocument(ctx context.Context, req *rag_svr.Delete
 func (s *RagServiceImpl) AddChatRecord(ctx context.Context, req *rag_svr.AddChatRecordReq) (resp *rag_svr.AddChatRecordRsp, err error) {
 	logger.Infof("添加聊天记录请求: session_id=%d, user_id=%d", req.SessionId, req.UserId)
 
+	chatRecordID := id_generator.GetInstance().GetChatRecordID()
+	if chatRecordID == 0 {
+		logger.Errorf("获取聊天记录ID失败")
+		return &rag_svr.AddChatRecordRsp{
+			Code: 1,
+			Msg:  "获取聊天记录ID失败",
+		}, nil
+	}
+
 	// 创建聊天记录
 	chatRecord := &mysql.ChatRecord{
+		ID:            chatRecordID,
 		SessionID:     req.SessionId,
 		UserID:        req.UserId,
 		Message:       req.Message,
