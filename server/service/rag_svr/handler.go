@@ -17,6 +17,8 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // RagServiceImpl implements the last service interface defined in the IDL.
@@ -55,7 +57,7 @@ func (s *RagServiceImpl) CreateUser(ctx context.Context, req *rag_svr.CreateUser
 		Password: req.Password, // 注意：实际应用中应该对密码进行加密
 	}
 
-	if err := mysql.GetDB().Create(user).Error; err != nil {
+	if err := mysql.GetDB().Table("user").Create(user).Error; err != nil {
 		logger.Errorf("创建用户失败: %v", err)
 		return &rag_svr.CreateUserRsp{
 			Code: 1,
@@ -117,7 +119,7 @@ func (s *RagServiceImpl) CreateSession(ctx context.Context, req *rag_svr.CreateS
 		}, nil
 	}
 
-	if err := mysql.GetDB().Create(session).Error; err != nil {
+	if err := mysql.GetDB().Table("chat_session").Create(session).Error; err != nil {
 		logger.Errorf("创建会话失败: %v", err)
 		return &rag_svr.CreateSessionRsp{
 			Code: 1,
@@ -184,7 +186,7 @@ func (s *RagServiceImpl) EndSession(ctx context.Context, req *rag_svr.EndSession
 	logger.Infof("结束会话请求: session_id=%d", req.SessionId)
 
 	// 更新会话状态
-	if err := mysql.GetDB().Model(&mysql.Session{}).
+	if err := mysql.GetDB().Table("chat_session").Model(&mysql.Session{}).
 		Where("id = ?", req.SessionId).
 		Update("status", "closed").Error; err != nil {
 		logger.Errorf("结束会话失败: %v", err)
@@ -206,7 +208,7 @@ func (s *RagServiceImpl) EndSession(ctx context.Context, req *rag_svr.EndSession
 func (s *RagServiceImpl) SendMessage(ctx context.Context, req *rag_svr.SendMessageReq) (resp *rag_svr.SendMessageRsp, err error) {
 	// 获取会话信息
 	var session mysql.Session
-	if err := mysql.GetDB().Model(&mysql.Session{}).First(&session, req.SessionId).Error; err != nil {
+	if err := mysql.GetDB().Table("chat_session").Model(&mysql.Session{}).First(&session, req.SessionId).Error; err != nil {
 		return &rag_svr.SendMessageRsp{
 			Code: 1,
 			Msg:  fmt.Sprintf("获取会话信息失败: %v", err),
@@ -232,7 +234,7 @@ func (s *RagServiceImpl) SendMessage(ctx context.Context, req *rag_svr.SendMessa
 
 	// 获取最近的对话记录作为上下文
 	var recentRecords []mysql.ChatRecord
-	if err := mysql.GetDB().Model(&mysql.ChatRecord{}).Where("session_id = ?", req.SessionId).
+	if err := mysql.GetDB().Table("chat_record").Model(&mysql.ChatRecord{}).Where("session_id = ?", req.SessionId).
 		Order("created_at DESC").
 		Limit(10).
 		Find(&recentRecords).Error; err != nil {
@@ -244,7 +246,7 @@ func (s *RagServiceImpl) SendMessage(ctx context.Context, req *rag_svr.SendMessa
 
 	// 搜索相关记忆
 	memoryManager := memory.GetInstance()
-	relatedMemories, err := memoryManager.SearchMemories(ctx, req.UserId, req.Message, 5)
+	relatedMemories, err := memoryManager.SearchMemories(ctx, req.Message, 5)
 	if err != nil {
 		logger.Errorf("搜索相关记忆失败: %v", err)
 	}
@@ -298,7 +300,7 @@ func (s *RagServiceImpl) SendMessage(ctx context.Context, req *rag_svr.SendMessa
 	if err := session.SetSystemState(systemState); err != nil {
 		logger.Errorf("更新系统状态失败: %v", err)
 	}
-	if err := mysql.GetDB().Save(&session).Error; err != nil {
+	if err := mysql.GetDB().Table("chat_session").Save(&session).Error; err != nil {
 		logger.Errorf("保存会话状态失败: %v", err)
 	}
 
@@ -354,7 +356,7 @@ func (s *RagServiceImpl) SendMessage(ctx context.Context, req *rag_svr.SendMessa
 		Metadata:      string(metadataJSON),
 	}
 
-	if err := mysql.GetDB().Create(chatRecord).Error; err != nil {
+	if err := mysql.GetDB().Table("chat_record").Create(chatRecord).Error; err != nil {
 		logger.Errorf("创建对话记录失败: %v", err)
 		return &rag_svr.SendMessageRsp{
 			Code: 1,
@@ -600,7 +602,7 @@ func (s *RagServiceImpl) AddDocument(ctx context.Context, req *rag_svr.AddDocume
 		Metadata: req.Metadata,
 	}
 
-	if err := mysql.GetDB().Create(doc).Error; err != nil {
+	if err := mysql.GetDB().Table("document").Create(doc).Error; err != nil {
 		logger.Errorf("创建文档失败: %v", err)
 		return &rag_svr.AddDocumentRsp{
 			Code: 1,
@@ -619,7 +621,7 @@ func (s *RagServiceImpl) AddDocument(ctx context.Context, req *rag_svr.AddDocume
 		"update_time": doc.UpdatedAt,
 	}
 
-	if _, err := mongodb.InsertOne(ctx, "documents", mongoDoc); err != nil {
+	if _, err := mongodb.InsertOne(ctx, "document", mongoDoc); err != nil {
 		logger.Errorf("存储文档到MongoDB失败: %v", err)
 		return &rag_svr.AddDocumentRsp{
 			Code: 1,
@@ -654,7 +656,7 @@ func (s *RagServiceImpl) SearchDocument(ctx context.Context, req *rag_svr.Search
 		SetSort(bson.M{"score": bson.M{"$meta": "textScore"}})
 
 	// 执行搜索
-	cursor, err := mongodb.Find(ctx, "documents", filter, opts)
+	cursor, err := mongodb.Find(ctx, "document", filter, opts)
 	if err != nil {
 		logger.Errorf("搜索文档失败: %v", err)
 		return &rag_svr.SearchDocumentRsp{
@@ -677,7 +679,7 @@ func (s *RagServiceImpl) SearchDocument(ctx context.Context, req *rag_svr.Search
 
 		// 获取文档详情
 		var mysqlDoc mysql.Document
-		if err := mysql.GetDB().Model(&mysql.Document{}).First(&mysqlDoc, doc["doc_id"]).Error; err != nil {
+		if err := mysql.GetDB().Table("document").Model(&mysql.Document{}).First(&mysqlDoc, doc["doc_id"]).Error; err != nil {
 			logger.Errorf("获取文档详情失败: %v", err)
 			continue
 		}
@@ -715,7 +717,7 @@ func (s *RagServiceImpl) GetSessionList(ctx context.Context, req *rag_svr.GetSes
 
 	// 获取用户的会话列表
 	var sessions []mysql.Session
-	query := mysql.GetDB().Model(&mysql.Session{}).Where("user_id = ?", req.UserId)
+	query := mysql.GetDB().Table("chat_session").Model(&mysql.Session{}).Where("user_id = ?", req.UserId)
 
 	// 根据状态筛选
 	if req.Status != "" {
@@ -824,7 +826,7 @@ func (s *RagServiceImpl) CleanInactiveSessions(ctx context.Context, req *rag_svr
 	inactiveTime := time.Now().Add(-time.Duration(req.InactiveDays) * 24 * time.Hour)
 
 	// 更新会话状态
-	result := mysql.GetDB().Model(&mysql.Session{}).
+	result := mysql.GetDB().Table("chat_session").Model(&mysql.Session{}).
 		Where("status = ? AND last_active_time < ?", "active", inactiveTime).
 		Update("status", "archived")
 
@@ -906,7 +908,7 @@ func (s *RagServiceImpl) ListDocument(ctx context.Context, req *rag_svr.ListDocu
 
 	// 获取用户的文档列表
 	var documents []mysql.Document
-	query := mysql.GetDB().Model(&mysql.Document{}).Where("user_id = ?", req.UserId)
+	query := mysql.GetDB().Table("document").Model(&mysql.Document{}).Where("user_id = ?", req.UserId)
 
 	// 获取总数
 	var total int64
@@ -963,7 +965,7 @@ func (s *RagServiceImpl) GetSession(ctx context.Context, req *rag_svr.GetSession
 
 	// 获取会话信息
 	var session mysql.Session
-	if err := mysql.GetDB().Model(&mysql.Session{}).First(&session, req.SessionId).Error; err != nil {
+	if err := mysql.GetDB().Table("chat_session").Model(&mysql.Session{}).First(&session, req.SessionId).Error; err != nil {
 		logger.Errorf("获取会话信息失败: %v", err)
 		return &rag_svr.GetSessionRsp{
 			Code: 1,
@@ -1016,7 +1018,7 @@ func (s *RagServiceImpl) GetSession(ctx context.Context, req *rag_svr.GetSession
 
 	// 获取会话的对话记录
 	var chatRecords []mysql.ChatRecord
-	if err := mysql.GetDB().Model(&mysql.ChatRecord{}).
+	if err := mysql.GetDB().Table("chat_record").Model(&mysql.ChatRecord{}).
 		Where("session_id = ?", req.SessionId).
 		Order("created_at ASC").
 		Find(&chatRecords).Error; err != nil {
@@ -1064,7 +1066,7 @@ func (s *RagServiceImpl) DeleteDocument(ctx context.Context, req *rag_svr.Delete
 
 	// 获取文档信息
 	var doc mysql.Document
-	if err := mysql.GetDB().Model(&mysql.Document{}).First(&doc, req.DocId).Error; err != nil {
+	if err := mysql.GetDB().Table("document").Model(&mysql.Document{}).First(&doc, req.DocId).Error; err != nil {
 		logger.Errorf("获取文档信息失败: %v", err)
 		return &rag_svr.DeleteDocumentRsp{
 			Code: 1,
@@ -1082,7 +1084,7 @@ func (s *RagServiceImpl) DeleteDocument(ctx context.Context, req *rag_svr.Delete
 	}
 
 	// 从 MySQL 中删除文档
-	if err := mysql.GetDB().Delete(&doc).Error; err != nil {
+	if err := mysql.GetDB().Table("document").Delete(&doc).Error; err != nil {
 		logger.Errorf("从 MySQL 删除文档失败: %v", err)
 		return &rag_svr.DeleteDocumentRsp{
 			Code: 1,
@@ -1095,7 +1097,7 @@ func (s *RagServiceImpl) DeleteDocument(ctx context.Context, req *rag_svr.Delete
 		"doc_id":  req.DocId,
 		"user_id": req.UserId,
 	}
-	if _, err := mongodb.DeleteOne(ctx, "documents", filter); err != nil {
+	if _, err := mongodb.DeleteOne(ctx, "document", filter); err != nil {
 		logger.Errorf("从 MongoDB 删除文档失败: %v", err)
 		// 继续执行，不返回错误，因为 MySQL 中已经删除成功
 	}
@@ -1125,7 +1127,7 @@ func (s *RagServiceImpl) AddChatRecord(ctx context.Context, req *rag_svr.AddChat
 		Metadata:      req.Metadata,
 	}
 
-	if err := mysql.GetDB().Create(chatRecord).Error; err != nil {
+	if err := mysql.GetDB().Table("chat_record").Create(chatRecord).Error; err != nil {
 		logger.Errorf("创建聊天记录失败: %v", err)
 		return &rag_svr.AddChatRecordRsp{
 			Code: 1,
@@ -1148,7 +1150,7 @@ func (s *RagServiceImpl) GetChatRecords(ctx context.Context, req *rag_svr.GetCha
 
 	// 获取聊天记录列表
 	var records []mysql.ChatRecord
-	query := mysql.GetDB().Model(&mysql.ChatRecord{}).Where("session_id = ?", req.SessionId)
+	query := mysql.GetDB().Table("chat_record").Model(&mysql.ChatRecord{}).Where("session_id = ?", req.SessionId)
 
 	// 获取总数
 	var total int64
@@ -1239,7 +1241,7 @@ func (s *RagServiceImpl) AddMemory(ctx context.Context, req *rag_svr.AddMemoryRe
 // verifyMemoryAccess 验证用户是否有权限访问记忆
 func (s *RagServiceImpl) verifyMemoryAccess(ctx context.Context, memoryID uint64, userID uint64) error {
 	var memory mysql.ChatMemory
-	if err := mysql.GetDB().First(&memory, memoryID).Error; err != nil {
+	if err := mysql.GetDB().Table("chat_memory").Model(&mysql.ChatMemory{}).First(&memory, memoryID).Error; err != nil {
 		return fmt.Errorf("获取记忆失败: %v", err)
 	}
 
@@ -1267,7 +1269,7 @@ func (s *RagServiceImpl) GetMemory(ctx context.Context, req *rag_svr.GetMemoryRe
 	memoryManager := memory.GetInstance()
 
 	// 获取记忆
-	memories, err := memoryManager.SearchMemories(ctx, req.UserId, fmt.Sprintf("id:%d", req.MemoryId), 1)
+	memories, err := memoryManager.SearchMemories(ctx, fmt.Sprintf("id:%d", req.MemoryId), 1)
 	if err != nil {
 		logger.Errorf("获取记忆失败: %v", err)
 		return &rag_svr.GetMemoryRsp{
@@ -1313,48 +1315,43 @@ func (s *RagServiceImpl) GetMemory(ctx context.Context, req *rag_svr.GetMemoryRe
 	}, nil
 }
 
-// SearchMemories implements the RagServiceImpl interface.
+// SearchMemories 搜索记忆
 func (s *RagServiceImpl) SearchMemories(ctx context.Context, req *rag_svr.SearchMemoriesReq) (resp *rag_svr.SearchMemoriesRsp, err error) {
 	logger.Infof("搜索记忆请求: query=%s, limit=%d", req.Query, req.Limit)
 
-	// 获取记忆管理器实例
-	memoryManager := memory.GetInstance()
-
-	// 搜索记忆
-	memories, err := memoryManager.SearchMemories(ctx, req.UserId, req.Query, int(req.Limit))
+	// 调用记忆管理器搜索记忆
+	memories, err := memory.GetInstance().SearchMemories(ctx, req.Query, int(req.Limit))
 	if err != nil {
 		logger.Errorf("搜索记忆失败: %v", err)
-		return &rag_svr.SearchMemoriesRsp{
-			Code: 1,
-			Msg:  fmt.Sprintf("搜索记忆失败: %v", err),
-		}, nil
+		return nil, status.Error(codes.Internal, fmt.Sprintf("搜索记忆失败: %v", err))
 	}
 
 	// 转换为响应格式
 	memoryList := make([]*rag_svr.Memory, 0, len(memories))
-	for _, m := range memories {
+	for _, mem := range memories {
 		// 将 metadata 转换为 JSON 字符串
-		metadataJSON, err := json.Marshal(m.Metadata)
+		metadataJSON, err := json.Marshal(mem.Metadata)
 		if err != nil {
 			logger.Errorf("序列化 metadata 失败: %v", err)
 			continue
 		}
 
 		memoryList = append(memoryList, &rag_svr.Memory{
-			MemoryId:    m.ID,
-			SessionId:   m.SessionID,
-			UserId:      m.UserID,
-			Content:     m.Content,
-			MemoryType:  m.Type,
-			Importance:  m.Importance,
+			MemoryId:    mem.ID,
+			SessionId:   mem.SessionID,
+			UserId:      mem.UserID,
+			Content:     mem.Content,
+			MemoryType:  mem.Type,
+			Importance:  float64(mem.Importance),
 			Metadata:    string(metadataJSON),
-			CreateTime:  m.CreatedAt.Format(time.RFC3339),
-			UpdateTime:  m.LastAccessed.Format(time.RFC3339),
-			ExpireTime:  m.ExpiresAt.Format(time.RFC3339),
-			AccessCount: int32(m.AccessCount),
+			CreateTime:  mem.CreatedAt.Format(time.RFC3339),
+			UpdateTime:  mem.LastAccessed.Format(time.RFC3339),
+			ExpireTime:  mem.ExpiresAt.Format(time.RFC3339),
+			AccessCount: int32(mem.AccessCount),
 		})
 	}
 
+	logger.Infof("搜索记忆完成: 找到%d个结果", len(memoryList))
 	return &rag_svr.SearchMemoriesRsp{
 		Code:     0,
 		Msg:      "success",
@@ -1376,7 +1373,7 @@ func (s *RagServiceImpl) DeleteMemory(ctx context.Context, req *rag_svr.DeleteMe
 	}
 
 	// 从数据库中删除记忆
-	if err := mysql.GetDB().Where("id = ?", req.MemoryId).Delete(&mysql.ChatMemory{}).Error; err != nil {
+	if err := mysql.GetDB().Table("chat_memory").Where("id = ?", req.MemoryId).Delete(&mysql.ChatMemory{}).Error; err != nil {
 		logger.Errorf("删除记忆失败: %v", err)
 		return &rag_svr.DeleteMemoryRsp{
 			Code: 1,

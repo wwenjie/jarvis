@@ -174,19 +174,30 @@ SYSTEM_PROMPT = """你是一个带长远记忆的 AI 助手，名字叫 Jarvis�
    - 及时清理过期信息
 
 你的行为准则：
-1. 始终以用户为中心，提供个性化服务
-2. 保持对话的连贯性和上下文理解
-3. 主动学习和适应用户的习惯
-4. 保护用户隐私和数据安全
-5. 提供准确、及时、有用的信息
-6. 在合适的时候主动提供建议
-7. 保持友好、专业、耐心的态度
+1. 保持对话的连贯性和上下文理解
+2. 主动学习和适应用户的习惯
+3. 提供准确、及时、有用的信息
+4. 在合适的时候主动提供建议
 
 你的记忆类型：
 1. 事实性记忆：用户的基本信息、重要事实
 2. 提醒类记忆：任务、日程、提醒事项
 3. 用户偏好：使用习惯、交互偏好
 4. 上下文记忆：当前对话的上下文信息
+
+函数调用格式要求：
+1. 调用函数时，必须生成完整的 JSON 格式参数
+2. 每个函数调用的参数必须在一行内完成，不要分多次生成
+3. JSON 格式必须完整，包含开始和结束的大括号
+4. 所有必需的参数都必须提供
+5. 参数值必须符合指定的类型要求
+
+搜索结果处理：
+1. 当搜索结果为空时，即memories为[]，直接告诉用户没有找到相关信息
+2. 不要重复搜索相同或类似的内容
+
+例如，搜索记忆的函数调用应该是：
+{"query": "搜索关键词","limit": 5}
 
 请记住：你的目标是成为用户的得力助手，通过长期记忆和个性化服务，提供更好的用户体验。"""
 
@@ -360,238 +371,362 @@ async def stream_get(query: str = Query(None), session_id: str = Query(None)):
         print(f"聊天接口错误: {error_msg}")
         raise HTTPException(status_code=500, detail=error_msg)
 
-async def process_stream_request(query: str, session_id: str = None):
-    try:
-        print(f"开始处理流式请求: query={query}, session_id={session_id}")
+async def process_function_call(func_call: dict, api_gateway_base_url: str) -> dict:
+    """处理单个函数调用
+    
+    Args:
+        func_call: 函数调用信息，包含name和arguments
+        api_gateway_base_url: API网关基础URL
         
-        # 如果没有提供session_id，创建一个新的
-        if not session_id:
-            print("创建新会话...")
+    Returns:
+        dict: 函数调用结果
+    """
+    try:
+        if func_call["name"] == "search_memories":
+            async with httpx.AsyncClient(base_url=api_gateway_base_url) as client:
+                response = await client.get(
+                    "/memory/search",
+                    params={
+                        "query": func_call["arguments"]["query"],
+                        "limit": func_call["arguments"].get("limit", 10)
+                    }
+                )
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get("code", 0) == 0:
+                        memories = result.get("memories", [])
+                        return {
+                            "name": "search_memories",
+                            "result": "success",
+                            "memories": memories,
+                            "is_empty": len(memories) == 0
+                        }
+                    else:
+                        return {
+                            "name": "search_memories",
+                            "result": "error",
+                            "error": result.get("msg", "未知错误")
+                        }
+                else:
+                    return {
+                        "name": "search_memories",
+                        "result": "error",
+                        "error": f"请求失败: {response.status_code}"
+                    }
+        
+        elif func_call["name"] == "add_memory":
+            async with httpx.AsyncClient(base_url=api_gateway_base_url) as client:
+                # 确保参数类型正确
+                args = func_call["arguments"]
+                request_data = {
+                    "user_id": int(args["user_id"]),  # 确保是整数
+                    "content": str(args["content"]),  # 确保是字符串
+                    "memory_type": str(args["memory_type"]),  # 确保是字符串
+                    "importance": float(args["importance"]),  # 确保是浮点数
+                }
+                # 如果有 metadata，转换为 JSON 字符串
+                if "metadata" in args:
+                    request_data["metadata"] = json.dumps(args["metadata"])
+                
+                print(f"发送添加记忆请求: {request_data}")  # 添加日志
+                response = await client.post(
+                    "/memory/add",
+                    json=request_data
+                )
+                print(f"添加记忆响应: {response.status_code} - {response.text}")  # 添加日志
+                if response.status_code == 200:
+                    result = response.json()
+                    if result["code"] == 0:
+                        return {
+                            "name": "add_memory",
+                            "result": "success",
+                            "memory_id": result.get("memory_id")
+                        }
+                    else:
+                        return {
+                            "name": "add_memory",
+                            "result": "error",
+                            "error": result.get("msg")
+                        }
+                else:
+                    return {
+                        "name": "add_memory",
+                        "result": "error",
+                        "error": f"请求失败: {response.status_code}"
+                    }
+        
+        elif func_call["name"] == "get_memory":
+            async with httpx.AsyncClient(base_url=api_gateway_base_url) as client:
+                response = await client.get(
+                    "/memory/get",
+                    params={"memory_id": func_call["arguments"]["memory_id"]}
+                )
+                if response.status_code == 200:
+                    result = response.json()
+                    if result["code"] == 0:
+                        return {
+                            "name": "get_memory",
+                            "result": "success",
+                            "memory": result.get("memory")
+                        }
+                    else:
+                        return {
+                            "name": "get_memory",
+                            "result": "error",
+                            "error": result.get("msg")
+                        }
+                else:
+                    return {
+                        "name": "get_memory",
+                        "result": "error",
+                        "error": f"请求失败: {response.status_code}"
+                    }
+        
+        elif func_call["name"] == "delete_memory":
+            async with httpx.AsyncClient(base_url=api_gateway_base_url) as client:
+                response = await client.delete(
+                    f"/memory/{func_call['arguments']['memory_id']}",
+                    json={"reason": func_call["arguments"]["reason"]}
+                )
+                if response.status_code == 200:
+                    result = response.json()
+                    if result["code"] == 0:
+                        return {
+                            "name": "delete_memory",
+                            "result": "success",
+                            "memory_id": func_call["arguments"]["memory_id"]
+                        }
+                    else:
+                        return {
+                            "name": "delete_memory",
+                            "result": "error",
+                            "error": result.get("msg")
+                        }
+                else:
+                    return {
+                        "name": "delete_memory",
+                        "result": "error",
+                        "error": f"请求失败: {response.status_code}"
+                    }
+        
+        return {
+            "name": func_call["name"],
+            "result": "error",
+            "error": f"未知的函数调用: {func_call['name']}"
+        }
+        
+    except Exception as e:
+        return {
+            "name": func_call["name"],
+            "result": "error",
+            "error": str(e)
+        }
+
+async def process_stream_request(query: str, session_id: str = None):
+    print(f"开始处理流式请求: query={query}, session_id={session_id}")
+    
+    # 如果没有提供session_id，创建一个新的
+    if not session_id:
+        print("创建新会话...")
+        async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL) as client:
+            response = await client.post(
+                "/session/create",
+                json={
+                    "user_id": 1,  # 固定用户ID
+                }
+            )
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail="创建会话失败")
+            result = response.json()
+            if result["code"] != 0:
+                raise HTTPException(status_code=500, detail=result["msg"])
+            session_id = str(result["session_id"])
+            print(f"新会话创建成功: session_id={session_id}")
+
+    # 检索相关文档
+    print("开始检索相关文档...")
+    try:
+        async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL, timeout=30.0) as client:
+            print(f"请求 API 网关: {API_GATEWAY_BASE_URL}/document/search")
+            print(f"请求参数: user_id=1, query={query}, top_k=3")
+            
+            response = await client.get(
+                "/document/search",
+                params={
+                    "user_id": 1,  # 固定用户ID
+                    "query": query,
+                    "top_k": 3
+                }
+            )
+            
+            print(f"API 网关响应状态码: {response.status_code}")
+            print(f"API 网关响应内容: {response.text}")
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail=f"搜索文档失败: HTTP {response.status_code}")
+                
+            result = response.json()
+            if result["code"] != 0:
+                raise HTTPException(status_code=500, detail=f"搜索文档失败: {result['msg']}")
+                
+            documents = result.get("results", [])
+            print(f"检索到 {len(documents)} 个相关文档")
+    except httpx.RequestError as e:
+        print(f"请求 API 网关失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"请求 API 网关失败: {str(e)}")
+    except Exception as e:
+        print(f"搜索文档时发生错误: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"搜索文档时发生错误: {str(e)}")
+
+    # 构建上下文
+    context = {
+        "documents": []
+    }
+    for doc in documents:
+        context["documents"].append({
+            "title": doc['title'],
+            "content": doc['content'],
+            "score": doc.get('score', 0)
+        })
+
+    # 获取当前时间
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # 构建用户提示词
+    user_prompt = USER_PROMPT_TEMPLATE.format(
+        user_id=1,
+        session_id=session_id,
+        current_time=current_time,
+        memory=json.dumps(context, ensure_ascii=False),
+        query=query
+    )
+    
+    # 外层循环：处理整个问答过程
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": user_prompt}
+    ]
+    
+    while True:
+        # 调用 qwen 模型（非流式模式）
+        response = openai_client.chat.completions.create(
+            model="qwen-turbo",
+            messages=messages,
+            functions=FUNCTIONS,  # 添加函数定义
+            stream=False  # 不使用流式模式
+        )
+        
+        # 打印完整的AI响应
+        print("\n=== AI 完整响应 ===")
+        print(f"Content: {response.choices[0].message.content}")
+        if response.choices[0].message.function_call:
+            print(f"Function Call: {response.choices[0].message.function_call.name}")
+            print(f"Arguments: {response.choices[0].message.function_call.arguments}")
+        print("==================\n")
+        
+        # 获取完整响应
+        full_response = response.choices[0].message.content or ""
+        function_calls = []
+        
+        # 处理函数调用
+        if response.choices[0].message.function_call:
+            function_call = response.choices[0].message.function_call
+            try:
+                args = json.loads(function_call.arguments)
+                function_calls.append({
+                    "name": function_call.name,
+                    "arguments": args
+                })
+            except json.JSONDecodeError as e:
+                print(f"解析函数调用参数失败: {str(e)}")
+                continue
+        
+        # 处理函数调用结果
+        if function_calls:
+            print(f"处理函数调用结果: {function_calls}")
+            function_results = []
+            
+            # 处理每个函数调用
+            for func_call in function_calls:
+                result = await process_function_call(func_call, API_GATEWAY_BASE_URL)
+                function_results.append(result)
+            
+            # 将函数调用结果添加到对话历史中
+            if function_results:
+                print(f"函数调用结果: {function_results}")
+                # 添加AI的函数调用请求
+                messages.append({
+                    "role": "assistant",
+                    "content": None,
+                    "function_call": {
+                        "name": function_call.name,
+                        "arguments": function_call.arguments
+                    }
+                })
+                # 添加函数调用结果
+                messages.append({
+                    "role": "function",
+                    "name": function_call.name,
+                    "content": json.dumps(function_results, ensure_ascii=False)
+                })
+                # 继续外层循环，重新调用模型
+                continue
+        
+        # 如果没有函数调用，或者函数调用已经处理完成，跳出循环
+        break
+    
+    # 保存聊天记录
+    if session_id and full_response:
+        try:
             async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL) as client:
                 response = await client.post(
-                    "/session/create",
+                    "/chat/record",
                     json={
-                        "user_id": 1,  # 固定用户ID
+                        "session_id": int(session_id),
+                        "user_id": 1,
+                        "message": query,
+                        "response": full_response,
+                        "context": json.dumps(context, ensure_ascii=False),
+                        "function_calls": json.dumps(function_calls, ensure_ascii=False),
+                        "metadata": json.dumps({
+                            "model": "qwen-turbo",
+                            "timestamp": current_time
+                        }, ensure_ascii=False)
                     }
                 )
                 if response.status_code != 200:
-                    raise HTTPException(status_code=500, detail="创建会话失败")
-                result = response.json()
-                if result["code"] != 0:
-                    raise HTTPException(status_code=500, detail=result["msg"])
-                session_id = str(result["session_id"])
-                print(f"新会话创建成功: session_id={session_id}")
-
-        # 检索相关文档
-        print("开始检索相关文档...")
-        try:
-            async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL, timeout=30.0) as client:
-                print(f"请求 API 网关: {API_GATEWAY_BASE_URL}/document/search")
-                print(f"请求参数: user_id=1, query={query}, top_k=3")
-                
-                response = await client.get(
-                    "/document/search",
-                    params={
-                        "user_id": 1,  # 固定用户ID
-                        "query": query,
-                        "top_k": 3
-                    }
-                )
-                
-                print(f"API 网关响应状态码: {response.status_code}")
-                print(f"API 网关响应内容: {response.text}")
-                
-                if response.status_code != 200:
-                    raise HTTPException(status_code=500, detail=f"搜索文档失败: HTTP {response.status_code}")
-                    
-                result = response.json()
-                if result["code"] != 0:
-                    raise HTTPException(status_code=500, detail=f"搜索文档失败: {result['msg']}")
-                    
-                documents = result.get("results", [])
-                print(f"检索到 {len(documents)} 个相关文档")
-        except httpx.RequestError as e:
-            print(f"请求 API 网关失败: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"请求 API 网关失败: {str(e)}")
+                    print(f"保存聊天记录失败: HTTP {response.status_code}")
+                else:
+                    result = response.json()
+                    if result["code"] != 0:
+                        print(f"保存聊天记录失败: {result['msg']}")
+                    else:
+                        print(f"聊天记录保存成功: chat_id={result['chat_id']}")
         except Exception as e:
-            print(f"搜索文档时发生错误: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"搜索文档时发生错误: {str(e)}")
+            print(f"保存聊天记录时发生错误: {str(e)}")
     
-        # 构建上下文
-        context = {
-            "documents": []
+    # 流式返回最终回答
+    async def generate_final_response():
+        # 模拟流式输出（逐字或按块）
+        chunk_size = 1  # 每次返回的字符数
+        for i in range(0, len(full_response), chunk_size):
+            chunk = full_response[i:i+chunk_size]
+            yield f"data: {json.dumps({'content': chunk, 'session_id': session_id})}\n\n"
+            await asyncio.sleep(0.01)  # 控制输出速度
+        
+        # 发送结束标记
+        yield f"data: {json.dumps({'content': '', 'session_id': session_id, 'done': True})}\n\n"
+    
+    # 返回流式响应
+    return StreamingResponse(
+        generate_final_response(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Transfer-Encoding": "chunked"
         }
-        for doc in documents:
-            context["documents"].append({
-                "title": doc['title'],
-                "content": doc['content'],
-                "score": doc.get('score', 0)
-            })
-    
-        # 创建stream响应    
-        async def generate():
-            print("开始生成流式响应...")
-            
-            try:
-                # 获取当前时间
-                current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                
-                # 构建用户提示词
-                user_prompt = USER_PROMPT_TEMPLATE.format(
-                    user_id=1,
-                    session_id=session_id,
-                    current_time=current_time,
-                    memory=json.dumps(context, ensure_ascii=False),
-                    query=query
-                )
-                
-                # 直接调用 qwen 模型
-                stream = openai_client.chat.completions.create(
-                    model="qwen-turbo",
-                    messages=[
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    functions=FUNCTIONS,  # 添加函数定义
-                    stream=True
-                )
-                
-                full_response = ""
-                function_calls = []
-                for chunk in stream:
-                    if chunk.choices[0].delta.content:
-                        content = chunk.choices[0].delta.content
-                        full_response += content
-                        yield f"data: {json.dumps({'content': content, 'session_id': session_id})}\n\n"
-                        await asyncio.sleep(0.01)  # 添加小延迟确保流式输出
-                    
-                    # 处理函数调用
-                    if chunk.choices[0].delta.function_call:
-                        function_call = chunk.choices[0].delta.function_call
-                        if function_call.name:
-                            print(f"函数调用: {function_call.name}")
-                            function_calls.append({
-                                "name": function_call.name,
-                                "arguments": function_call.arguments
-                            })
-                            # 处理函数调用
-                            if function_call.name == "add_memory":
-                                args = json.loads(function_call.arguments)
-                                async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL) as client:
-                                    response = await client.post(
-                                        "/memory/add",
-                                        json=args
-                                    )
-                                    if response.status_code == 200:
-                                        result = response.json()
-                                        if result["code"] == 0:
-                                            print(f"添加记忆成功: {result['data']['memory_id']}")
-                                        else:
-                                            print(f"添加记忆失败: {result['msg']}")
-                                    else:
-                                        print(f"添加记忆请求失败: {response.status_code}")
-                            
-                            elif function_call.name == "get_memory":
-                                args = json.loads(function_call.arguments)
-                                async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL) as client:
-                                    response = await client.get(
-                                        "/memory/get",
-                                        params={"memory_id": args["memory_id"]}
-                                    )
-                                    if response.status_code == 200:
-                                        result = response.json()
-                                        if result["code"] == 0:
-                                            print(f"获取记忆成功: {result['data']['memory']}")
-                                        else:
-                                            print(f"获取记忆失败: {result['msg']}")
-                                    else:
-                                        print(f"获取记忆请求失败: {response.status_code}")
-                            
-                            elif function_call.name == "search_memories":
-                                args = json.loads(function_call.arguments)
-                                async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL) as client:
-                                    response = await client.get(
-                                        "/memory/search",
-                                        params={
-                                            "query": args["query"],
-                                            "limit": args.get("limit", 10)
-                                        }
-                                    )
-                                    if response.status_code == 200:
-                                        result = response.json()
-                                        if result["code"] == 0:
-                                            print(f"搜索记忆成功: {result['data']['memories']}")
-                                        else:
-                                            print(f"搜索记忆失败: {result['msg']}")
-                                    else:
-                                        print(f"搜索记忆请求失败: {response.status_code}")
-                            
-                            elif function_call.name == "delete_memory":
-                                args = json.loads(function_call.arguments)
-                                async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL) as client:
-                                    response = await client.delete(
-                                        f"/memory/{args['memory_id']}",
-                                        json={"reason": args["reason"]}
-                                    )
-                                    if response.status_code == 200:
-                                        result = response.json()
-                                        if result["code"] == 0:
-                                            print(f"删除记忆成功: {args['memory_id']}")
-                                        else:
-                                            print(f"删除记忆失败: {result['msg']}")
-                                    else:
-                                        print(f"删除记忆请求失败: {response.status_code}")
-                        
-                    if chunk.choices[0].finish_reason is not None:
-                        yield f"data: {json.dumps({'content': '', 'session_id': session_id, 'done': True})}\n\n"
-                        break
-                        
-                # 响应完成后，将完整会话保存到数据库
-                if session_id:
-                    try:
-                        async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL) as client:
-                            response = await client.post(
-                                "/chat/record",
-                                json={
-                                    "session_id": int(session_id),
-                                    "user_id": 1,
-                                    "message": query,
-                                    "response": full_response,
-                                    "context": json.dumps(context, ensure_ascii=False),
-                                    "function_calls": json.dumps(function_calls, ensure_ascii=False),
-                                    "metadata": json.dumps({
-                                        "model": "qwen-turbo",
-                                        "timestamp": current_time
-                                    }, ensure_ascii=False)
-                                }
-                            )
-                            if response.status_code != 200:
-                                print(f"保存聊天记录失败: HTTP {response.status_code}")
-                            else:
-                                result = response.json()
-                                if result["code"] != 0:
-                                    print(f"保存聊天记录失败: {result['msg']}")
-                                else:
-                                    print(f"聊天记录保存成功: chat_id={result['chat_id']}")
-                    except Exception as e:
-                        print(f"保存聊天记录时发生错误: {str(e)}")
-            except Exception as e:
-                print(f"生成响应时发生错误: {str(e)}")
-                yield f"data: {json.dumps({'content': f'生成响应时发生错误: {str(e)}', 'session_id': session_id, 'error': True})}\n\n"
-                
-        return StreamingResponse(
-            generate(),
-            media_type="text/event-stream",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "Transfer-Encoding": "chunked"
-            }
-        )
-    except Exception as e:
-        error_msg = f"处理流式请求失败: {str(e)}"
-        print(error_msg)
-        raise HTTPException(status_code=500, detail=error_msg)
+    )
 
 # 会话历史记录 API
 @app.get("/api/chat/history")

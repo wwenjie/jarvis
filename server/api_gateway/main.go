@@ -37,7 +37,7 @@ func main() {
 	ragSvrClient, err := ragservice.NewClient(
 		"rag_svr",
 		client.WithResolver(etcdResolver),
-		client.WithRPCTimeout(3*time.Second), // RPC超时时间
+		client.WithRPCTimeout(10*time.Second), // RPC超时时间
 		client.WithLoadBalancer(loadbalance.NewWeightedBalancer()), // 负载均衡策略
 		client.WithMiddleware(func(next endpoint.Endpoint) endpoint.Endpoint {
 			return func(ctx context.Context, req, resp interface{}) (err error) {
@@ -52,7 +52,15 @@ func main() {
 					logger.Infof("本次请求没有下游服务端地址")
 					return
 				}
-				logger.Infof("本次请求实际下游服务端地址: %s", to.Address().String())
+				// 获取接口名
+				invocation := rpcInfo.Invocation()
+				if invocation != nil {
+					logger.Infof("本次请求接口: %s, 下游服务端地址: %s",
+						invocation.MethodName(),
+						to.Address().String())
+				} else {
+					logger.Infof("本次请求下游服务端地址: %s", to.Address().String())
+				}
 				return
 			}
 		}),
@@ -80,7 +88,15 @@ func main() {
 					logger.Infof("本次请求没有下游服务端地址")
 					return
 				}
-				logger.Infof("本次请求实际下游服务端地址: %s", to.Address().String())
+				// 获取接口名
+				invocation := rpcInfo.Invocation()
+				if invocation != nil {
+					logger.Infof("本次请求接口: %s, 下游服务端地址: %s",
+						invocation.MethodName(),
+						to.Address().String())
+				} else {
+					logger.Infof("本次请求下游服务端地址: %s", to.Address().String())
+				}
 				return
 			}
 		}),

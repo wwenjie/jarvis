@@ -37,12 +37,14 @@ mongodb:
 milvus:
   host: "10.1.20.17"
   port: 19530
+  dimension: 1024
 
 # AI 模型配置
 ai:
   chat_model:
     provider: "dashscope"  # 支持 dashscope, openai 等
-    model_name: "qwen-turbo"  # 从环境变量 MODEL_NAME 读取
+    model_name: "qwen-turbo"
+    base_url: "https://dashscope.aliyuncs.com/api/v1"
     temperature: 0.7  # 从环境变量 TEMPERATURE 读取
     max_tokens: 2000
     top_p: 0.8
@@ -53,6 +55,7 @@ ai:
   embedding_model:
     provider: "dashscope"  # 支持 dashscope, openai 等
     model_name: "text-embedding-v4"  # 用于文本向量化的模型
+    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
     dimension: 1024  # 向量维度，模型的固有属性
 
 log:

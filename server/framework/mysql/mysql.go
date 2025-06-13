@@ -65,11 +65,11 @@ func GetDB() *gorm.DB {
 func autoMigrate() error {
 	// 创建表
 	if err := db.AutoMigrate(
+		&IDGenerator{},
 		&User{},
 		&Session{},
 		&ChatRecord{},
 		&Document{},
-		&IDGeneratorRecord{},
 		&ChatMemory{},
 		&Reminder{},
 	); err != nil {
@@ -81,6 +81,7 @@ func autoMigrate() error {
 		table   string
 		columns []string
 	}{
+		{"id_generator", []string{"id_name"}},
 		{"chat_session", []string{"user_id", "status"}},
 		{"chat_session", []string{"last_active_time"}},
 		{"chat_record", []string{"session_id", "created_at"}},
@@ -119,6 +120,14 @@ func autoMigrate() error {
 	}
 
 	return nil
+}
+
+// IDGenerator ID生成器表记录
+type IDGenerator struct {
+	IDName    string `gorm:"column:id_name;type:varchar(50);primaryKey;table:id_generator"`
+	Sequence  uint64 `gorm:"column:sequence;not null;default:0"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // User 用户表
@@ -175,14 +184,6 @@ type Document struct {
 	UpdatedAt time.Time
 }
 
-// IDGeneratorRecord ID生成器表记录
-type IDGeneratorRecord struct {
-	IDName    string `gorm:"column:id_name;type:varchar(50);primaryKey"`
-	Sequence  uint64 `gorm:"column:sequence;not null;default:0"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
 // ChatMemory 对话记忆表
 type ChatMemory struct {
 	ID          uint64  `gorm:"primaryKey;table:chat_memory"`
@@ -200,7 +201,7 @@ type ChatMemory struct {
 
 // Reminder 提醒记录
 type Reminder struct {
-	ID         uint64    `gorm:"primaryKey;autoIncrement"`
+	ID         uint64    `gorm:"primaryKey;autoIncrement;table:reminder"`
 	Content    string    `gorm:"type:text;not null"`        // 提醒内容
 	RemindTime time.Time `gorm:"not null"`                  // 提醒时间
 	Status     string    `gorm:"type:varchar(20);not null"` // 状态：pending/triggered/completed

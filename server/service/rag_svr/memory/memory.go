@@ -8,11 +8,10 @@ import (
 	"time"
 
 	"server/framework/id_generator"
+	"server/framework/logger"
 	"server/framework/milvus"
 	"server/framework/mysql"
-	"server/service/rag_svr/embedding"
-
-	"gorm.io/gorm"
+	"server/service/rag_svr/vector"
 )
 
 // 记忆类型
@@ -23,7 +22,7 @@ const (
 	MemoryTypeContext    = "context"    // 上下文记忆
 
 	// Milvus 集合名称
-	MemoryCollectionName = "chat_memories"
+	MemoryCollectionName = milvus.MemoryCollectionName
 )
 
 // 记忆结构
@@ -44,7 +43,7 @@ type Memory struct {
 
 // 记忆管理器
 type MemoryManager struct {
-	idGen *id_generator.IDGenerator
+	idGen *id_generator.IDGeneratorManager
 }
 
 var instance *MemoryManager
@@ -60,15 +59,15 @@ func GetInstance() *MemoryManager {
 }
 
 // AddMemory 添加记忆
-func (m *MemoryManager) AddMemory(ctx context.Context, sessionID uint64, userID uint64, content string, memoryType string, importance float64, metadata map[string]interface{}, expiresAt *time.Time) error {
+func (m *MemoryManager) AddMemory(ctx context.Context, sessionID, userID uint64, content string, memoryType string, importance float64, metadata map[string]interface{}, tags []string) error {
+	// 生成向量
+	vector, err := vector.GetEmbedding(content)
+	if err != nil {
+		return fmt.Errorf("生成向量失败: %v", err)
+	}
+
 	// 生成记忆ID
 	memoryID := m.idGen.GetMemoryID()
-
-	// 获取向量表示
-	embedding, err := embedding.GetEmbedding(content)
-	if err != nil {
-		return fmt.Errorf("获取向量表示失败: %v", err)
-	}
 
 	// 将 metadata 转换为 JSON 字符串
 	metadataJSON, err := json.Marshal(metadata)
@@ -89,108 +88,100 @@ func (m *MemoryManager) AddMemory(ctx context.Context, sessionID uint64, userID 
 		ExpireTime: time.Now().AddDate(0, 0, 7), // 默认7天过期
 	}
 
-	// 设置过期时间
-	if expiresAt != nil {
-		memory.ExpireTime = *expiresAt
-	}
-
 	// 保存到数据库
 	if err := mysql.GetDB().Create(memory).Error; err != nil {
 		return fmt.Errorf("保存记忆失败: %v", err)
 	}
 
 	// 保存到 Milvus
-	if err := milvus.InsertVector(ctx, MemoryCollectionName, int64(memoryID), embedding); err != nil {
+	if err := milvus.InsertVector(ctx, MemoryCollectionName, int64(memoryID), vector); err != nil {
 		// 删除数据库记录
 		mysql.GetDB().Delete(memory)
 		return fmt.Errorf("保存向量失败: %v", err)
 	}
 
+	logger.Infof("add memory,memoryID=%d", memoryID)
+
 	return nil
 }
 
-// SearchMemories 搜索相关记忆
-func (m *MemoryManager) SearchMemories(ctx context.Context, userID uint64, query string, limit int) ([]*Memory, error) {
-	// 生成查询向量
-	queryEmbedding, err := embedding.GetEmbedding(query)
+// SearchMemories 搜索记忆
+func (m *MemoryManager) SearchMemories(ctx context.Context, query string, limit int) ([]*Memory, error) {
+	// 获取查询向量的 embedding
+	embedding, err := vector.GetEmbedding(query)
 	if err != nil {
-		return nil, fmt.Errorf("生成查询向量失败: %v", err)
+		return nil, fmt.Errorf("获取查询向量失败: %v", err)
 	}
 
-	// 在 Milvus 中搜索相似向量
-	ids, scores, err := milvus.SearchVector(ctx, MemoryCollectionName, queryEmbedding, limit*2) // 获取更多结果用于重排序
+	// 搜索向量
+	ids, scores, err := milvus.SearchVector(ctx, MemoryCollectionName, embedding, limit)
 	if err != nil {
 		return nil, fmt.Errorf("搜索向量失败: %v", err)
 	}
 
-	// 获取对应的记忆记录
-	var memories []*mysql.ChatMemory
-	if err := mysql.GetDB().Where("id IN ? AND user_id = ? AND expire_time > ?", ids, userID, time.Now()).Find(&memories).Error; err != nil {
-		return nil, fmt.Errorf("获取记忆记录失败: %v", err)
+	if len(ids) == 0 {
+		return []*Memory{}, nil
 	}
 
-	// 创建 ID 到分数的映射
-	scoreMap := make(map[uint64]float32)
+	// 构建 ID 列表
+	idList := make([]uint64, len(ids))
 	for i, id := range ids {
-		scoreMap[uint64(id)] = scores[i]
+		idList[i] = uint64(id)
 	}
 
-	// 转换为 Memory 结构并计算综合分数
-	result := make([]*Memory, 0, len(memories))
-	for _, mem := range memories {
-		similarity := scoreMap[mem.ID]
-		// 解析 metadata JSON 字符串
+	// 从数据库获取记忆详情
+	var memories []*mysql.ChatMemory
+	err = mysql.GetDB().Table("chat_memory").
+		Where("id IN ? AND user_id = ? AND expire_time > ?", idList, 1, time.Now()).
+		Order("importance DESC").
+		Find(&memories).Error
+	if err != nil {
+		return nil, fmt.Errorf("获取记忆详情失败: %v", err)
+	}
+
+	// 转换为 Memory 结构
+	result := make([]*Memory, len(memories))
+	for i, memory := range memories {
+		// 解析 metadata
 		var metadata map[string]interface{}
-		if err := json.Unmarshal([]byte(mem.Metadata), &metadata); err != nil {
-			metadata = make(map[string]interface{})
+		if memory.Metadata != "" {
+			if err := json.Unmarshal([]byte(memory.Metadata), &metadata); err != nil {
+				return nil, fmt.Errorf("解析 metadata 失败: %v", err)
+			}
 		}
 
-		result = append(result, &Memory{
-			ID:           mem.ID,
-			SessionID:    mem.SessionID,
-			UserID:       mem.UserID,
-			Content:      mem.Content,
-			Type:         mem.MemoryType,
-			Importance:   float64(mem.Importance),
-			CreatedAt:    mem.CreatedAt,
-			ExpiresAt:    mem.ExpireTime,
-			LastAccessed: mem.UpdatedAt,
-			AccessCount:  mem.AccessCount,
+		result[i] = &Memory{
+			ID:           memory.ID,
+			SessionID:    memory.SessionID,
+			UserID:       memory.UserID,
+			Content:      memory.Content,
+			Type:         memory.MemoryType,
+			Importance:   float64(memory.Importance),
+			CreatedAt:    memory.CreatedAt,
+			ExpiresAt:    memory.ExpireTime,
+			LastAccessed: memory.UpdatedAt,
+			AccessCount:  memory.AccessCount,
 			Metadata:     metadata,
-			Similarity:   similarity,
-		})
-	}
-
-	// 重排序：综合考虑相似度、重要性和时间
-	sort.Slice(result, func(i, j int) bool {
-		// 计算综合分数
-		scoreI := float64(result[i].Similarity)*0.6 + // 相似度权重 60%
-			float64(result[i].Importance)*0.3 + // 重要性权重 30%
-			float64(time.Since(result[i].LastAccessed).Hours())/float64(time.Since(result[i].CreatedAt).Hours())*0.1 // 时间衰减权重 10%
-
-		scoreJ := float64(result[j].Similarity)*0.6 +
-			float64(result[j].Importance)*0.3 +
-			float64(time.Since(result[j].LastAccessed).Hours())/float64(time.Since(result[j].CreatedAt).Hours())*0.1
-
-		return scoreI > scoreJ
-	})
-
-	// 只返回前 limit 个结果
-	if len(result) > limit {
-		result = result[:limit]
-	}
-
-	// 更新访问信息和计数
-	for _, mem := range result {
-		if err := mysql.GetDB().Model(&mysql.ChatMemory{}).
-			Where("id = ?", mem.ID).
-			Updates(map[string]interface{}{
-				"updated_at":   time.Now(),
-				"access_count": gorm.Expr("access_count + 1"),
-			}).Error; err != nil {
-			continue
 		}
 	}
+
+	// 按相似度分数排序
+	sort.Slice(result, func(i, j int) bool {
+		idxI := -1
+		idxJ := -1
+		for k, id := range ids {
+			if uint64(id) == result[i].ID {
+				idxI = k
+			}
+			if uint64(id) == result[j].ID {
+				idxJ = k
+			}
+		}
+		if idxI == -1 || idxJ == -1 {
+			return false
+		}
+		return scores[idxI] < scores[idxJ]
+	})
 
 	return result, nil
 }
@@ -199,7 +190,9 @@ func (m *MemoryManager) SearchMemories(ctx context.Context, userID uint64, query
 func (m *MemoryManager) CleanExpiredMemories(ctx context.Context) error {
 	// 获取过期的记忆 ID
 	var expiredMemories []*mysql.ChatMemory
-	if err := mysql.GetDB().Where("expire_time < ?", time.Now()).Find(&expiredMemories).Error; err != nil {
+	if err := mysql.GetDB().Table("chat_memory").
+		Where("expire_time < ?", time.Now()).
+		Find(&expiredMemories).Error; err != nil {
 		return fmt.Errorf("查询过期记忆失败: %v", err)
 	}
 
@@ -221,7 +214,9 @@ func (m *MemoryManager) CleanExpiredMemories(ctx context.Context) error {
 	}
 
 	// 删除 MySQL 中的记录
-	if err := mysql.GetDB().Where("id IN ?", expiredIDs).Delete(&mysql.ChatMemory{}).Error; err != nil {
+	if err := mysql.GetDB().Table("chat_memory").
+		Where("id IN ?", expiredIDs).
+		Delete(&mysql.ChatMemory{}).Error; err != nil {
 		return fmt.Errorf("删除过期记忆失败: %v", err)
 	}
 
@@ -237,7 +232,7 @@ func (m *MemoryManager) GetMemoryStats(ctx context.Context, userID uint64) (map[
 		AvgAccessCount float64 `gorm:"column:avg_access_count"`
 	}
 
-	if err := mysql.GetDB().Table("chat_memories").
+	if err := mysql.GetDB().Table("chat_memory").
 		Select("memory_type, COUNT(*) as count, AVG(importance) as avg_importance, AVG(access_count) as avg_access_count").
 		Where("user_id = ?", userID).
 		Group("memory_type").
@@ -261,14 +256,17 @@ func (m *MemoryManager) GetMemoryStats(ctx context.Context, userID uint64) (map[
 func (m *MemoryManager) GetRelatedMemories(ctx context.Context, memoryID uint64, limit int) ([]map[string]interface{}, error) {
 	// 先获取当前记忆
 	var currentMemory mysql.ChatMemory
-	if err := mysql.GetDB().Where("id = ?", memoryID).First(&currentMemory).Error; err != nil {
+	if err := mysql.GetDB().Table("chat_memory").
+		Where("id = ?", memoryID).
+		First(&currentMemory).Error; err != nil {
 		return nil, fmt.Errorf("获取当前记忆失败: %v", err)
 	}
 
 	// 获取相关记忆
 	var relatedMemories []mysql.ChatMemory
-	if err := mysql.GetDB().Where("user_id = ? AND id != ? AND memory_type = ?",
-		currentMemory.UserID, memoryID, currentMemory.MemoryType).
+	if err := mysql.GetDB().Table("chat_memory").
+		Where("user_id = ? AND id != ? AND memory_type = ?",
+			currentMemory.UserID, memoryID, currentMemory.MemoryType).
 		Order("importance DESC").
 		Limit(limit).
 		Find(&relatedMemories).Error; err != nil {
@@ -309,7 +307,7 @@ func (m *MemoryManager) BatchAddMemories(ctx context.Context, memories []*Memory
 		}
 
 		// 获取向量表示
-		embedding, err := embedding.GetEmbedding(memory.Content)
+		embedding, err := vector.GetEmbedding(memory.Content)
 		if err != nil {
 			return fmt.Errorf("获取向量表示失败: %v", err)
 		}
@@ -386,7 +384,7 @@ func (m *MemoryManager) BatchDeleteMemories(ctx context.Context, memoryIDs []uin
 // UpdateMemory 更新记忆
 func (m *MemoryManager) UpdateMemory(ctx context.Context, memoryID uint64, content string, importance float64, metadata map[string]interface{}) error {
 	// 获取向量表示
-	embedding, err := embedding.GetEmbedding(content)
+	embedding, err := vector.GetEmbedding(content)
 	if err != nil {
 		return fmt.Errorf("获取向量表示失败: %v", err)
 	}
@@ -398,7 +396,7 @@ func (m *MemoryManager) UpdateMemory(ctx context.Context, memoryID uint64, conte
 	}
 
 	// 更新数据库记录
-	if err := mysql.GetDB().Model(&mysql.ChatMemory{}).
+	if err := mysql.GetDB().Table("chat_memory").
 		Where("id = ?", memoryID).
 		Updates(map[string]interface{}{
 			"content":    content,
