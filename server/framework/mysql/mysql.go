@@ -67,7 +67,7 @@ func autoMigrate() error {
 	if err := db.AutoMigrate(
 		&IDGenerator{},
 		&User{},
-		&Session{},
+		&ChatSession{},
 		&ChatRecord{},
 		&Document{},
 		&ChatMemory{},
@@ -124,15 +124,19 @@ func autoMigrate() error {
 
 // IDGenerator ID生成器表记录
 type IDGenerator struct {
-	IDName    string `gorm:"column:id_name;type:varchar(50);primaryKey;table:id_generator"`
+	IDName    string `gorm:"column:id_name;type:varchar(50);primaryKey"`
 	Sequence  uint64 `gorm:"column:sequence;not null;default:0"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
+func (IDGenerator) TableName() string {
+	return "id_generator"
+}
+
 // User 用户表
 type User struct {
-	ID        uint64 `gorm:"primaryKey;table:user"`
+	ID        uint64 `gorm:"primaryKey"`
 	Username  string `gorm:"size:50;not null;unique"`
 	Email     string `gorm:"size:100;not null;unique"`
 	Password  string `gorm:"size:100;not null"`
@@ -141,9 +145,13 @@ type User struct {
 	UpdatedAt time.Time
 }
 
+func (User) TableName() string {
+	return "user"
+}
+
 // Session 会话表
-type Session struct {
-	ID             uint64    `gorm:"primaryKey;table:chat_session"`
+type ChatSession struct {
+	ID             uint64    `gorm:"primaryKey"`
 	UserID         uint64    `gorm:"not null"`
 	Status         string    `gorm:"size:20;not null;default:'active'"`
 	Title          string    `gorm:"size:200"`
@@ -156,9 +164,13 @@ type Session struct {
 	UpdatedAt      time.Time
 }
 
+func (ChatSession) TableName() string {
+	return "chat_session"
+}
+
 // ChatRecord 对话记录表
 type ChatRecord struct {
-	ID            uint64 `gorm:"primaryKey;table:chat_record"`
+	ID            uint64 `gorm:"primaryKey"`
 	SessionID     uint64 `gorm:"not null"`
 	UserID        uint64 `gorm:"not null"`
 	Message       string `gorm:"type:text;not null"`
@@ -172,9 +184,13 @@ type ChatRecord struct {
 	UpdatedAt     time.Time
 }
 
+func (ChatRecord) TableName() string {
+	return "chat_record"
+}
+
 // Document 文档表
 type Document struct {
-	ID        uint64 `gorm:"primaryKey;table:document"`
+	ID        uint64 `gorm:"primaryKey"`
 	UserID    uint64 `gorm:"not null"`
 	Title     string `gorm:"size:200;not null"`
 	Content   string `gorm:"type:text;not null"`
@@ -184,9 +200,13 @@ type Document struct {
 	UpdatedAt time.Time
 }
 
+func (Document) TableName() string {
+	return "document"
+}
+
 // ChatMemory 对话记忆表
 type ChatMemory struct {
-	ID          uint64  `gorm:"primaryKey;table:chat_memory"`
+	ID          uint64  `gorm:"primaryKey"`
 	SessionID   uint64  `gorm:"not null"`
 	UserID      uint64  `gorm:"not null"`
 	Content     string  `gorm:"type:text;not null"`
@@ -199,9 +219,13 @@ type ChatMemory struct {
 	UpdatedAt   time.Time
 }
 
+func (ChatMemory) TableName() string {
+	return "chat_memory"
+}
+
 // Reminder 提醒记录
 type Reminder struct {
-	ID         uint64    `gorm:"primaryKey;autoIncrement;table:reminder"`
+	ID         uint64    `gorm:"primaryKey;autoIncrement"`
 	Content    string    `gorm:"type:text;not null"`        // 提醒内容
 	RemindTime time.Time `gorm:"not null"`                  // 提醒时间
 	Status     string    `gorm:"type:varchar(20);not null"` // 状态：pending/triggered/completed
@@ -209,8 +233,12 @@ type Reminder struct {
 	UpdateTime time.Time `gorm:"not null"`                  // 更新时间
 }
 
+func (Reminder) TableName() string {
+	return "reminder"
+}
+
 // GetUserState 获取用户状态
-func (s *Session) GetUserState() (map[string]string, error) {
+func (s *ChatSession) GetUserState() (map[string]string, error) {
 	if s.UserState == "" {
 		return make(map[string]string), nil
 	}
@@ -222,7 +250,7 @@ func (s *Session) GetUserState() (map[string]string, error) {
 }
 
 // SetUserState 设置用户状态
-func (s *Session) SetUserState(state map[string]string) error {
+func (s *ChatSession) SetUserState(state map[string]string) error {
 	if state == nil {
 		s.UserState = "{}"
 		return nil
@@ -236,7 +264,7 @@ func (s *Session) SetUserState(state map[string]string) error {
 }
 
 // GetSystemState 获取系统状态
-func (s *Session) GetSystemState() (map[string]string, error) {
+func (s *ChatSession) GetSystemState() (map[string]string, error) {
 	if s.SystemState == "" {
 		return make(map[string]string), nil
 	}
@@ -248,7 +276,7 @@ func (s *Session) GetSystemState() (map[string]string, error) {
 }
 
 // SetSystemState 设置系统状态
-func (s *Session) SetSystemState(state map[string]string) error {
+func (s *ChatSession) SetSystemState(state map[string]string) error {
 	if state == nil {
 		s.SystemState = "{}"
 		return nil
@@ -262,7 +290,7 @@ func (s *Session) SetSystemState(state map[string]string) error {
 }
 
 // GetMetadata 获取元数据
-func (s *Session) GetMetadata() (map[string]interface{}, error) {
+func (s *ChatSession) GetMetadata() (map[string]interface{}, error) {
 	if s.Metadata == "" {
 		return make(map[string]interface{}), nil
 	}
@@ -274,7 +302,7 @@ func (s *Session) GetMetadata() (map[string]interface{}, error) {
 }
 
 // SetMetadata 设置元数据
-func (s *Session) SetMetadata(metadata map[string]interface{}) error {
+func (s *ChatSession) SetMetadata(metadata map[string]interface{}) error {
 	if metadata == nil {
 		s.Metadata = "{}"
 		return nil

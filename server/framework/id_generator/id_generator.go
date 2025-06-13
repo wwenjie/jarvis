@@ -57,10 +57,10 @@ type IDGeneratorManager struct {
 	sessionIDCurrent uint64
 	sessionIDMax     uint64
 
-	// 记录ID相关
-	recordIDMutex   sync.Mutex
-	recordIDCurrent uint64
-	recordIDMax     uint64
+	// 聊天记录ID相关
+	chatRecordIDMutex   sync.Mutex
+	chatRecordIDCurrent uint64
+	chatRecordIDMax     uint64
 
 	// 记忆ID相关
 	memoryIDMutex   sync.Mutex
@@ -109,7 +109,7 @@ func (g *IDGeneratorManager) init() error {
 	}
 
 	// 初始化记录ID
-	if err := g.refreshRecordID(); err != nil {
+	if err := g.refreshChatRecordID(); err != nil {
 		return err
 	}
 
@@ -213,10 +213,10 @@ func (g *IDGeneratorManager) refreshSessionID() error {
 	return nil
 }
 
-// refreshRecordID 刷新记录ID段
-func (g *IDGeneratorManager) refreshRecordID() error {
-	g.recordIDMutex.Lock()
-	defer g.recordIDMutex.Unlock()
+// refreshChatRecordID 刷新聊天记录ID段
+func (g *IDGeneratorManager) refreshChatRecordID() error {
+	g.chatRecordIDMutex.Lock()
+	defer g.chatRecordIDMutex.Unlock()
 
 	var record IDGenerator
 	if err := g.db.Transaction(func(tx *gorm.DB) error {
@@ -248,8 +248,8 @@ func (g *IDGeneratorManager) refreshRecordID() error {
 		return fmt.Errorf("刷新记录ID段失败: %v", err)
 	}
 
-	g.recordIDCurrent = record.Sequence - RecordIDStep
-	g.recordIDMax = record.Sequence
+	g.chatRecordIDCurrent = record.Sequence - RecordIDStep
+	g.chatRecordIDMax = record.Sequence
 
 	return nil
 }
@@ -409,20 +409,20 @@ func (g *IDGeneratorManager) GetSessionID() uint64 {
 	return g.sessionIDCurrent
 }
 
-// GetRecordID 获取新的记录ID
-func (g *IDGeneratorManager) GetRecordID() uint64 {
-	g.recordIDMutex.Lock()
-	defer g.recordIDMutex.Unlock()
+// GetChatRecordID 获取新的聊天记录ID
+func (g *IDGeneratorManager) GetChatRecordID() uint64 {
+	g.chatRecordIDMutex.Lock()
+	defer g.chatRecordIDMutex.Unlock()
 
-	if g.recordIDCurrent >= g.recordIDMax {
-		if err := g.refreshRecordID(); err != nil {
+	if g.chatRecordIDCurrent >= g.chatRecordIDMax {
+		if err := g.refreshChatRecordID(); err != nil {
 			logger.Errorf("刷新记录ID段失败: %v", err)
 			return 0
 		}
 	}
 
-	g.recordIDCurrent++
-	return g.recordIDCurrent
+	g.chatRecordIDCurrent++
+	return g.chatRecordIDCurrent
 }
 
 // GetMemoryID 获取新的记忆ID

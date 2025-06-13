@@ -117,6 +117,9 @@ def main():
         print(f"\n记录 {i+1}:")
         print(f"ID: {result['id']}")
         print(f"向量维度: {len(result['vector'])}")
+        # 删除
+        collection.delete(expr=f"id == '{result['id']}'")
+    collection.flush()
 
 if __name__ == "__main__":
     main() 

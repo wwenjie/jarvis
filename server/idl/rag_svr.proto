@@ -93,23 +93,6 @@ message CreateSessionRsp {
     SessionInfo session_info = 3;
 }
 
-// 发送消息请求
-message SendMessageReq {
-    uint32 seq_id = 1;
-    uint64 session_id = 2;
-    uint64 user_id = 3;
-    string message = 4;
-    string message_type = 5;
-    string context = 6;  // 添加文档上下文
-}
-
-message SendMessageRsp {
-    uint32 code = 1;
-    string msg = 2;
-    ChatRecord chat_record = 3;
-    SessionInfo session_info = 4;  // 更新后的会话信息
-}
-
 // 结束会话请求
 message EndSessionReq {
     uint32 seq_id = 1;
@@ -347,9 +330,6 @@ service RagService {
   rpc EndSession(EndSessionReq) returns (EndSessionRsp);
   rpc GetSessionList(GetSessionListReq) returns (GetSessionListRsp);
   rpc CleanInactiveSessions(CleanInactiveSessionsReq) returns (CleanInactiveSessionsRsp);
-
-  // 对话管理
-  rpc SendMessage(SendMessageReq) returns (SendMessageRsp);
 
   // 知识文档
   rpc AddDocument(AddDocumentReq) returns (AddDocumentRsp);

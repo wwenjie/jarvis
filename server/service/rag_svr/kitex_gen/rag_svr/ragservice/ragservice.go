@@ -71,13 +71,6 @@ var serviceMethods = map[string]kitex.MethodInfo{
 		false,
 		kitex.WithStreamingMode(kitex.StreamingUnary),
 	),
-	"SendMessage": kitex.NewMethodInfo(
-		sendMessageHandler,
-		newSendMessageArgs,
-		newSendMessageResult,
-		false,
-		kitex.WithStreamingMode(kitex.StreamingUnary),
-	),
 	"AddDocument": kitex.NewMethodInfo(
 		addDocumentHandler,
 		newAddDocumentArgs,
@@ -1099,117 +1092,6 @@ func (p *CleanInactiveSessionsResult) IsSetSuccess() bool {
 }
 
 func (p *CleanInactiveSessionsResult) GetResult() interface{} {
-	return p.Success
-}
-
-func sendMessageHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
-	switch s := arg.(type) {
-	case *streaming.Args:
-		st := s.Stream
-		req := new(rag_svr.SendMessageReq)
-		if err := st.RecvMsg(req); err != nil {
-			return err
-		}
-		resp, err := handler.(rag_svr.RagService).SendMessage(ctx, req)
-		if err != nil {
-			return err
-		}
-		return st.SendMsg(resp)
-	case *SendMessageArgs:
-		success, err := handler.(rag_svr.RagService).SendMessage(ctx, s.Req)
-		if err != nil {
-			return err
-		}
-		realResult := result.(*SendMessageResult)
-		realResult.Success = success
-		return nil
-	default:
-		return errInvalidMessageType
-	}
-}
-func newSendMessageArgs() interface{} {
-	return &SendMessageArgs{}
-}
-
-func newSendMessageResult() interface{} {
-	return &SendMessageResult{}
-}
-
-type SendMessageArgs struct {
-	Req *rag_svr.SendMessageReq
-}
-
-func (p *SendMessageArgs) Marshal(out []byte) ([]byte, error) {
-	if !p.IsSetReq() {
-		return out, nil
-	}
-	return proto.Marshal(p.Req)
-}
-
-func (p *SendMessageArgs) Unmarshal(in []byte) error {
-	msg := new(rag_svr.SendMessageReq)
-	if err := proto.Unmarshal(in, msg); err != nil {
-		return err
-	}
-	p.Req = msg
-	return nil
-}
-
-var SendMessageArgs_Req_DEFAULT *rag_svr.SendMessageReq
-
-func (p *SendMessageArgs) GetReq() *rag_svr.SendMessageReq {
-	if !p.IsSetReq() {
-		return SendMessageArgs_Req_DEFAULT
-	}
-	return p.Req
-}
-
-func (p *SendMessageArgs) IsSetReq() bool {
-	return p.Req != nil
-}
-
-func (p *SendMessageArgs) GetFirstArgument() interface{} {
-	return p.Req
-}
-
-type SendMessageResult struct {
-	Success *rag_svr.SendMessageRsp
-}
-
-var SendMessageResult_Success_DEFAULT *rag_svr.SendMessageRsp
-
-func (p *SendMessageResult) Marshal(out []byte) ([]byte, error) {
-	if !p.IsSetSuccess() {
-		return out, nil
-	}
-	return proto.Marshal(p.Success)
-}
-
-func (p *SendMessageResult) Unmarshal(in []byte) error {
-	msg := new(rag_svr.SendMessageRsp)
-	if err := proto.Unmarshal(in, msg); err != nil {
-		return err
-	}
-	p.Success = msg
-	return nil
-}
-
-func (p *SendMessageResult) GetSuccess() *rag_svr.SendMessageRsp {
-	if !p.IsSetSuccess() {
-		return SendMessageResult_Success_DEFAULT
-	}
-	return p.Success
-}
-
-func (p *SendMessageResult) SetSuccess(x interface{}) {
-	p.Success = x.(*rag_svr.SendMessageRsp)
-}
-
-func (p *SendMessageResult) IsSetSuccess() bool {
-	return p.Success != nil
-}
-
-func (p *SendMessageResult) GetResult() interface{} {
 	return p.Success
 }
 
@@ -2408,16 +2290,6 @@ func (p *kClient) CleanInactiveSessions(ctx context.Context, Req *rag_svr.CleanI
 	_args.Req = Req
 	var _result CleanInactiveSessionsResult
 	if err = p.c.Call(ctx, "CleanInactiveSessions", &_args, &_result); err != nil {
-		return
-	}
-	return _result.GetSuccess(), nil
-}
-
-func (p *kClient) SendMessage(ctx context.Context, Req *rag_svr.SendMessageReq) (r *rag_svr.SendMessageRsp, err error) {
-	var _args SendMessageArgs
-	_args.Req = Req
-	var _result SendMessageResult
-	if err = p.c.Call(ctx, "SendMessage", &_args, &_result); err != nil {
 		return
 	}
 	return _result.GetSuccess(), nil
