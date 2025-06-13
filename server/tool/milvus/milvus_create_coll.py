@@ -75,7 +75,7 @@ def insert_data(collection, num=100):
 def search_data(collection, vector, topk=5):
     search_params = {
         "metric_type": "L2",
-        "params": {"nprobe": 10}
+        "params": {"ef": 64}
     }
     results = collection.search(
         data=vector,

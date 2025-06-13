@@ -30,13 +30,21 @@ const (
 	IDNameReminder    = "reminder_id"     // 提醒ID
 )
 
-var (
-	instance *IDGenerator
-	once     sync.Once
-)
-
-// IDGenerator ID生成器
+// IDGenerator ID生成器表记录
 type IDGenerator struct {
+	IDName    string `gorm:"column:id_name;type:varchar(50);primaryKey;table:id_generator"`
+	Sequence  uint64 `gorm:"column:sequence;not null;default:0"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// TableName 指定表名
+func (IDGenerator) TableName() string {
+	return "id_generator"
+}
+
+// IDGeneratorManager ID生成器管理器
+type IDGeneratorManager struct {
 	db *gorm.DB
 
 	// 用户ID相关
@@ -70,18 +78,15 @@ type IDGenerator struct {
 	reminderIDMax     uint64
 }
 
-// IDGeneratorRecord ID生成器表记录
-type IDGeneratorRecord struct {
-	IDName    string `gorm:"column:id_name;type:varchar(50);primaryKey"`
-	Sequence  uint64 `gorm:"column:sequence;not null;default:0"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
+var (
+	instance *IDGeneratorManager
+	once     sync.Once
+)
 
 // GetInstance 获取ID生成器实例
-func GetInstance() *IDGenerator {
+func GetInstance() *IDGeneratorManager {
 	once.Do(func() {
-		instance = &IDGenerator{
+		instance = &IDGeneratorManager{
 			db: mysql.GetDB(),
 		}
 		if err := instance.init(); err != nil {
@@ -92,7 +97,7 @@ func GetInstance() *IDGenerator {
 }
 
 // init 初始化ID生成器
-func (g *IDGenerator) init() error {
+func (g *IDGeneratorManager) init() error {
 	// 初始化用户ID
 	if err := g.refreshUserID(); err != nil {
 		return err
@@ -127,20 +132,33 @@ func (g *IDGenerator) init() error {
 }
 
 // refreshUserID 刷新用户ID段
-func (g *IDGenerator) refreshUserID() error {
+func (g *IDGeneratorManager) refreshUserID() error {
 	g.userIDMutex.Lock()
 	defer g.userIDMutex.Unlock()
 
-	var record IDGeneratorRecord
+	var record IDGenerator
 	if err := g.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("id_name = ?", IDNameUser).First(&record).Error; err != nil {
-			return err
-		}
-
-		// 更新数据库中的当前值
-		record.Sequence += UserIDStep
-		if err := tx.Save(&record).Error; err != nil {
-			return err
+		// 尝试获取记录，如果不存在则创建
+		result := tx.Where("id_name = ?", IDNameUser).First(&record)
+		if result.Error != nil {
+			if result.Error == gorm.ErrRecordNotFound {
+				// 记录不存在，创建新记录
+				record = IDGenerator{
+					IDName:   IDNameUser,
+					Sequence: UserIDStep,
+				}
+				if err := tx.Create(&record).Error; err != nil {
+					return err
+				}
+			} else {
+				return result.Error
+			}
+		} else {
+			// 更新数据库中的当前值
+			record.Sequence += UserIDStep
+			if err := tx.Save(&record).Error; err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -155,20 +173,33 @@ func (g *IDGenerator) refreshUserID() error {
 }
 
 // refreshSessionID 刷新会话ID段
-func (g *IDGenerator) refreshSessionID() error {
+func (g *IDGeneratorManager) refreshSessionID() error {
 	g.sessionIDMutex.Lock()
 	defer g.sessionIDMutex.Unlock()
 
-	var record IDGeneratorRecord
+	var record IDGenerator
 	if err := g.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("id_name = ?", IDNameChatSession).First(&record).Error; err != nil {
-			return err
-		}
-
-		// 更新数据库中的当前值
-		record.Sequence += SessionIDStep
-		if err := tx.Save(&record).Error; err != nil {
-			return err
+		// 尝试获取记录，如果不存在则创建
+		result := tx.Where("id_name = ?", IDNameChatSession).First(&record)
+		if result.Error != nil {
+			if result.Error == gorm.ErrRecordNotFound {
+				// 记录不存在，创建新记录
+				record = IDGenerator{
+					IDName:   IDNameChatSession,
+					Sequence: SessionIDStep,
+				}
+				if err := tx.Create(&record).Error; err != nil {
+					return err
+				}
+			} else {
+				return result.Error
+			}
+		} else {
+			// 更新数据库中的当前值
+			record.Sequence += SessionIDStep
+			if err := tx.Save(&record).Error; err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -183,20 +214,33 @@ func (g *IDGenerator) refreshSessionID() error {
 }
 
 // refreshRecordID 刷新记录ID段
-func (g *IDGenerator) refreshRecordID() error {
+func (g *IDGeneratorManager) refreshRecordID() error {
 	g.recordIDMutex.Lock()
 	defer g.recordIDMutex.Unlock()
 
-	var record IDGeneratorRecord
+	var record IDGenerator
 	if err := g.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("id_name = ?", IDNameChatRecord).First(&record).Error; err != nil {
-			return err
-		}
-
-		// 更新数据库中的当前值
-		record.Sequence += RecordIDStep
-		if err := tx.Save(&record).Error; err != nil {
-			return err
+		// 尝试获取记录，如果不存在则创建
+		result := tx.Where("id_name = ?", IDNameChatRecord).First(&record)
+		if result.Error != nil {
+			if result.Error == gorm.ErrRecordNotFound {
+				// 记录不存在，创建新记录
+				record = IDGenerator{
+					IDName:   IDNameChatRecord,
+					Sequence: RecordIDStep,
+				}
+				if err := tx.Create(&record).Error; err != nil {
+					return err
+				}
+			} else {
+				return result.Error
+			}
+		} else {
+			// 更新数据库中的当前值
+			record.Sequence += RecordIDStep
+			if err := tx.Save(&record).Error; err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -211,20 +255,33 @@ func (g *IDGenerator) refreshRecordID() error {
 }
 
 // refreshMemoryID 刷新记忆ID段
-func (g *IDGenerator) refreshMemoryID() error {
+func (g *IDGeneratorManager) refreshMemoryID() error {
 	g.memoryIDMutex.Lock()
 	defer g.memoryIDMutex.Unlock()
 
-	var record IDGeneratorRecord
+	var record IDGenerator
 	if err := g.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("id_name = ?", IDNameChatMemory).First(&record).Error; err != nil {
-			return err
-		}
-
-		// 更新数据库中的当前值
-		record.Sequence += MemoryIDStep
-		if err := tx.Save(&record).Error; err != nil {
-			return err
+		// 尝试获取记录，如果不存在则创建
+		result := tx.Where("id_name = ?", IDNameChatMemory).First(&record)
+		if result.Error != nil {
+			if result.Error == gorm.ErrRecordNotFound {
+				// 记录不存在，创建新记录
+				record = IDGenerator{
+					IDName:   IDNameChatMemory,
+					Sequence: MemoryIDStep,
+				}
+				if err := tx.Create(&record).Error; err != nil {
+					return err
+				}
+			} else {
+				return result.Error
+			}
+		} else {
+			// 更新数据库中的当前值
+			record.Sequence += MemoryIDStep
+			if err := tx.Save(&record).Error; err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -239,20 +296,33 @@ func (g *IDGenerator) refreshMemoryID() error {
 }
 
 // refreshDocumentID 刷新文档ID段
-func (g *IDGenerator) refreshDocumentID() error {
+func (g *IDGeneratorManager) refreshDocumentID() error {
 	g.documentIDMutex.Lock()
 	defer g.documentIDMutex.Unlock()
 
-	var record IDGeneratorRecord
+	var record IDGenerator
 	if err := g.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("id_name = ?", IDNameDocument).First(&record).Error; err != nil {
-			return err
-		}
-
-		// 更新数据库中的当前值
-		record.Sequence += DocumentIDStep
-		if err := tx.Save(&record).Error; err != nil {
-			return err
+		// 尝试获取记录，如果不存在则创建
+		result := tx.Where("id_name = ?", IDNameDocument).First(&record)
+		if result.Error != nil {
+			if result.Error == gorm.ErrRecordNotFound {
+				// 记录不存在，创建新记录
+				record = IDGenerator{
+					IDName:   IDNameDocument,
+					Sequence: DocumentIDStep,
+				}
+				if err := tx.Create(&record).Error; err != nil {
+					return err
+				}
+			} else {
+				return result.Error
+			}
+		} else {
+			// 更新数据库中的当前值
+			record.Sequence += DocumentIDStep
+			if err := tx.Save(&record).Error; err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -267,20 +337,33 @@ func (g *IDGenerator) refreshDocumentID() error {
 }
 
 // refreshReminderID 刷新提醒ID段
-func (g *IDGenerator) refreshReminderID() error {
+func (g *IDGeneratorManager) refreshReminderID() error {
 	g.reminderIDMutex.Lock()
 	defer g.reminderIDMutex.Unlock()
 
-	var record IDGeneratorRecord
+	var record IDGenerator
 	if err := g.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("id_name = ?", IDNameReminder).First(&record).Error; err != nil {
-			return err
-		}
-
-		// 更新数据库中的当前值
-		record.Sequence += ReminderIDStep
-		if err := tx.Save(&record).Error; err != nil {
-			return err
+		// 尝试获取记录，如果不存在则创建
+		result := tx.Where("id_name = ?", IDNameReminder).First(&record)
+		if result.Error != nil {
+			if result.Error == gorm.ErrRecordNotFound {
+				// 记录不存在，创建新记录
+				record = IDGenerator{
+					IDName:   IDNameReminder,
+					Sequence: ReminderIDStep,
+				}
+				if err := tx.Create(&record).Error; err != nil {
+					return err
+				}
+			} else {
+				return result.Error
+			}
+		} else {
+			// 更新数据库中的当前值
+			record.Sequence += ReminderIDStep
+			if err := tx.Save(&record).Error; err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -295,7 +378,7 @@ func (g *IDGenerator) refreshReminderID() error {
 }
 
 // GetUserID 获取新的用户ID
-func (g *IDGenerator) GetUserID() uint64 {
+func (g *IDGeneratorManager) GetUserID() uint64 {
 	g.userIDMutex.Lock()
 	defer g.userIDMutex.Unlock()
 
@@ -311,7 +394,7 @@ func (g *IDGenerator) GetUserID() uint64 {
 }
 
 // GetSessionID 获取新的会话ID
-func (g *IDGenerator) GetSessionID() uint64 {
+func (g *IDGeneratorManager) GetSessionID() uint64 {
 	g.sessionIDMutex.Lock()
 	defer g.sessionIDMutex.Unlock()
 
@@ -327,7 +410,7 @@ func (g *IDGenerator) GetSessionID() uint64 {
 }
 
 // GetRecordID 获取新的记录ID
-func (g *IDGenerator) GetRecordID() uint64 {
+func (g *IDGeneratorManager) GetRecordID() uint64 {
 	g.recordIDMutex.Lock()
 	defer g.recordIDMutex.Unlock()
 
@@ -343,7 +426,7 @@ func (g *IDGenerator) GetRecordID() uint64 {
 }
 
 // GetMemoryID 获取新的记忆ID
-func (g *IDGenerator) GetMemoryID() uint64 {
+func (g *IDGeneratorManager) GetMemoryID() uint64 {
 	g.memoryIDMutex.Lock()
 	defer g.memoryIDMutex.Unlock()
 
@@ -359,7 +442,7 @@ func (g *IDGenerator) GetMemoryID() uint64 {
 }
 
 // GetDocumentID 获取新的文档ID
-func (g *IDGenerator) GetDocumentID() uint64 {
+func (g *IDGeneratorManager) GetDocumentID() uint64 {
 	g.documentIDMutex.Lock()
 	defer g.documentIDMutex.Unlock()
 
@@ -375,7 +458,7 @@ func (g *IDGenerator) GetDocumentID() uint64 {
 }
 
 // GetReminderID 获取新的提醒ID
-func (g *IDGenerator) GetReminderID() uint64 {
+func (g *IDGeneratorManager) GetReminderID() uint64 {
 	g.reminderIDMutex.Lock()
 	defer g.reminderIDMutex.Unlock()
 

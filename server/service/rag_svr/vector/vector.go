@@ -1,4 +1,4 @@
-package ai
+package vector
 
 import (
 	"bytes"
@@ -28,15 +28,6 @@ var (
 	// 并发控制
 	requestSemaphore = make(chan struct{}, 10) // 限制最大并发请求数
 )
-
-// EmbeddingResponse 向量表示响应
-type EmbeddingResponse struct {
-	Output struct {
-		Embeddings []struct {
-			Embedding []float32 `json:"embedding"`
-		} `json:"embeddings"`
-	} `json:"output"`
-}
 
 // GetEmbedding 获取文本的向量表示
 func GetEmbedding(text string) ([]float32, error) {

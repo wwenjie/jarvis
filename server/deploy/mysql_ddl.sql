@@ -52,10 +52,8 @@ CREATE TABLE IF NOT EXISTS `chat_record` (
     `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
-    KEY `idx_session_user_created` (`session_id`, `user_id`, `created_at`),
-    KEY `idx_status` (`status`),
-    CONSTRAINT `fk_chat_record_session_id` FOREIGN KEY (`session_id`) REFERENCES `chat_session` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `fk_chat_record_user_id` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE
+    KEY `idx_session_created` (`session_id`, `created_at`),
+    KEY `idx_user_created` (`user_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='对话记录表';
 
 -- 文档表

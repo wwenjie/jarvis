@@ -52,15 +52,17 @@ type Config struct {
 	} `yaml:"mongodb"`
 
 	Milvus struct {
-		Host string `yaml:"host"`
-		Port int    `yaml:"port"`
+		Host      string `yaml:"host"`      // Milvus 服务地址
+		Port      int    `yaml:"port"`      // Milvus 服务端口
+		Dimension int    `yaml:"dimension"` // 向量维度
 	} `yaml:"milvus"`
 
 	AI struct {
 		ChatModel struct {
-			APIKey           string  `yaml:"-"`                 // 从环境变量读取
+			APIKey           string  `yaml:"-"`                 // 从环境变量读取 DASHSCOPE_API_KEY
 			Provider         string  `yaml:"provider"`          // 支持 dashscope, openai 等
 			ModelName        string  `yaml:"model_name"`        // 模型名称
+			BaseURL          string  `yaml:"base_url"`          // API 基础 URL
 			Temperature      float64 `yaml:"temperature"`       // 温度参数
 			MaxTokens        int     `yaml:"max_tokens"`        // 最大生成token数
 			TopP             float64 `yaml:"top_p"`             // 采样阈值
@@ -68,8 +70,10 @@ type Config struct {
 			PresencePenalty  float64 `yaml:"presence_penalty"`  // 存在惩罚
 		} `yaml:"chat_model"`
 		EmbeddingModel struct {
+			APIKey    string `yaml:"-"`          // 从环境变量读取 EMBEDDING_API_KEY
 			Provider  string `yaml:"provider"`   // 支持 dashscope, openai 等
 			ModelName string `yaml:"model_name"` // 向量化模型名称
+			BaseURL   string `yaml:"base_url"`   // API 基础 URL
 			Dimension int    `yaml:"dimension"`  // 向量维度
 		} `yaml:"embedding_model"`
 	} `yaml:"ai"`
@@ -112,6 +116,12 @@ func loadAIConfig() error {
 	GlobalConfig.AI.ChatModel.APIKey = os.Getenv("DASHSCOPE_API_KEY")
 	if GlobalConfig.AI.ChatModel.APIKey == "" {
 		return fmt.Errorf("环境变量 DASHSCOPE_API_KEY 未设置")
+	}
+
+	// 加载 Embedding API Key
+	GlobalConfig.AI.EmbeddingModel.APIKey = os.Getenv("EMBEDDING_API_KEY")
+	if GlobalConfig.AI.EmbeddingModel.APIKey == "" {
+		return fmt.Errorf("环境变量 EMBEDDING_API_KEY 未设置")
 	}
 
 	// 加载模型名称

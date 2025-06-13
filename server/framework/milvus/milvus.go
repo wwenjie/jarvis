@@ -9,12 +9,19 @@ import (
 	"time"
 
 	"server/framework/config"
+	"server/framework/logger"
 
 	"github.com/milvus-io/milvus-sdk-go/v2/client"
 	"github.com/milvus-io/milvus-sdk-go/v2/entity"
 )
 
 var milvusClient client.Client
+
+// 集合名称常量
+const (
+	MemoryCollectionName   = "chat_memory" // 记忆集合
+	DocumentCollectionName = "document"    // 文档集合
+)
 
 // MilvusStats 用于记录 Milvus 操作统计信息
 type MilvusStats struct {
@@ -45,55 +52,14 @@ func InitMilvus() error {
 	if err != nil {
 		return fmt.Errorf("创建 Milvus 客户端失败: %v", err)
 	}
-	return nil
-}
 
-// CreateCollection 创建集合
-func CreateCollection(ctx context.Context, collectionName string, dim int) error {
-	// 检查集合是否存在
-	exists, err := milvusClient.HasCollection(ctx, collectionName)
-	if err != nil {
-		return fmt.Errorf("检查集合是否存在失败: %v", err)
-	}
-	if exists {
-		return nil
+	// 确保集合已加载
+	if err := milvusClient.LoadCollection(ctx, MemoryCollectionName, true); err != nil {
+		return fmt.Errorf("加载记忆集合失败: %v", err)
 	}
 
-	// 创建集合
-	schema := &entity.Schema{
-		CollectionName: collectionName,
-		Description:    "向量集合",
-		Fields: []*entity.Field{
-			{
-				Name:       "id",
-				DataType:   entity.FieldTypeInt64,
-				PrimaryKey: true,
-				AutoID:     true,
-			},
-			{
-				Name:     "vector",
-				DataType: entity.FieldTypeFloatVector,
-				TypeParams: map[string]string{
-					"dim": fmt.Sprintf("%d", dim),
-				},
-			},
-		},
-	}
-
-	err = milvusClient.CreateCollection(ctx, schema, 2) // 2 个分片
-	if err != nil {
-		return fmt.Errorf("创建集合失败: %v", err)
-	}
-
-	// 创建索引
-	index, err := entity.NewIndexIvfFlat(entity.L2, 1024)
-	if err != nil {
-		return fmt.Errorf("创建索引失败: %v", err)
-	}
-
-	err = milvusClient.CreateIndex(ctx, collectionName, "vector", index, false)
-	if err != nil {
-		return fmt.Errorf("创建索引失败: %v", err)
+	if err := milvusClient.LoadCollection(ctx, DocumentCollectionName, true); err != nil {
+		return fmt.Errorf("加载文档集合失败: %v", err)
 	}
 
 	return nil
@@ -102,11 +68,14 @@ func CreateCollection(ctx context.Context, collectionName string, dim int) error
 // InsertVector 插入向量
 func InsertVector(ctx context.Context, collectionName string, id int64, vector []float32) error {
 	// 准备数据
-	ids := entity.NewColumnInt64("id", []int64{id})
-	vectors := entity.NewColumnFloatVector("vector", 1536, [][]float32{vector})
+	logger.Infof("insert vector,collectionName=%s, id=%d", collectionName, id)
+	row := map[string]interface{}{
+		"id":     id,
+		"vector": vector,
+	}
 
 	// 插入数据
-	_, err := milvusClient.Insert(ctx, collectionName, "", ids, vectors)
+	_, err := milvusClient.InsertRows(ctx, collectionName, "", []interface{}{row})
 	if err != nil {
 		return fmt.Errorf("插入向量失败: %v", err)
 	}
@@ -140,7 +109,7 @@ func DeleteVector(ctx context.Context, collectionName string, id int64) error {
 // SearchVector 搜索向量
 func SearchVector(ctx context.Context, collectionName string, queryVector []float32, topK int) ([]int64, []float32, error) {
 	// 准备搜索参数
-	searchParam, err := entity.NewIndexIvfFlatSearchParam(1024)
+	searchParam, err := entity.NewIndexHNSWSearchParam(64) // ef = 64
 	if err != nil {
 		return nil, nil, fmt.Errorf("创建搜索参数失败: %v", err)
 	}
@@ -185,8 +154,10 @@ func SearchVector(ctx context.Context, collectionName string, queryVector []floa
 // UpdateVector 更新向量
 func UpdateVector(ctx context.Context, collectionName string, id int64, vector []float32) error {
 	// 准备数据
-	ids := entity.NewColumnInt64("id", []int64{id})
-	vectors := entity.NewColumnFloatVector("vector", 1536, [][]float32{vector})
+	row := map[string]interface{}{
+		"id":     id,
+		"vector": vector,
+	}
 
 	// 删除旧向量
 	if err := milvusClient.Delete(ctx, collectionName, "", fmt.Sprintf("id == %d", id)); err != nil {
@@ -194,7 +165,7 @@ func UpdateVector(ctx context.Context, collectionName string, id int64, vector [
 	}
 
 	// 插入新向量
-	_, err := milvusClient.Insert(ctx, collectionName, "", ids, vectors)
+	_, err := milvusClient.InsertRows(ctx, collectionName, "", []interface{}{row})
 	if err != nil {
 		return fmt.Errorf("插入新向量失败: %v", err)
 	}
@@ -225,11 +196,16 @@ func BatchInsertVectors(ctx context.Context, collectionName string, ids []int64,
 	}()
 
 	// 准备数据
-	idColumn := entity.NewColumnInt64("id", ids)
-	vectorColumn := entity.NewColumnFloatVector("vector", len(vectors[0]), vectors)
+	rows := make([]interface{}, len(ids))
+	for i := range ids {
+		rows[i] = map[string]interface{}{
+			"id":     ids[i],
+			"vector": vectors[i],
+		}
+	}
 
 	// 插入数据
-	_, err := milvusClient.Insert(ctx, collectionName, "", idColumn, vectorColumn)
+	_, err := milvusClient.InsertRows(ctx, collectionName, "", rows)
 	if err != nil {
 		stats.ErrorCount++
 		return fmt.Errorf("批量插入向量失败: %v", err)

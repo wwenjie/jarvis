@@ -69,14 +69,14 @@ func IndexDocument(ctx context.Context, doc *Document) error {
 	doc.Metadata = metadataJSON
 
 	// 3. 保存到数据库
-	if err := mysql.GetDB().Create(doc).Error; err != nil {
+	if err := mysql.GetDB().Table("document").Create(doc).Error; err != nil {
 		return fmt.Errorf("保存文档失败: %v", err)
 	}
 
 	// 4. 保存到 Milvus
-	if err := milvus.InsertVector(ctx, "documents", int64(doc.ID), embedding); err != nil {
+	if err := milvus.InsertVector(ctx, "document", int64(doc.ID), embedding); err != nil {
 		// 如果 Milvus 插入失败，回滚数据库操作
-		mysql.GetDB().Delete(&Document{}, doc.ID)
+		mysql.GetDB().Table("document").Delete(&Document{}, doc.ID)
 		return fmt.Errorf("保存向量失败: %v", err)
 	}
 
@@ -107,7 +107,7 @@ func SearchDocuments(ctx context.Context, params *DocumentSearchParams) ([]*Sear
 	}
 
 	// 3. 在 Milvus 中搜索相似向量
-	ids, scores, err := milvus.SearchVector(ctx, "documents", queryEmbedding, params.TopK*2) // 获取更多结果用于重排序
+	ids, scores, err := milvus.SearchVector(ctx, "document", queryEmbedding, params.TopK*2) // 获取更多结果用于重排序
 	if err != nil {
 		return nil, fmt.Errorf("搜索向量失败: %v", err)
 	}
@@ -185,14 +185,14 @@ func UpdateDocument(ctx context.Context, doc *Document) error {
 	doc.Metadata = metadataJSON
 
 	// 3. 更新数据库
-	if err := mysql.GetDB().Save(doc).Error; err != nil {
+	if err := mysql.GetDB().Table("document").Save(doc).Error; err != nil {
 		return fmt.Errorf("更新文档失败: %v", err)
 	}
 
 	// 4. 更新 Milvus
-	if err := milvus.UpdateVector(ctx, "documents", int64(doc.ID), embedding); err != nil {
+	if err := milvus.UpdateVector(ctx, "document", int64(doc.ID), embedding); err != nil {
 		// 如果 Milvus 更新失败，回滚数据库操作
-		mysql.GetDB().Save(doc)
+		mysql.GetDB().Table("document").Save(doc)
 		return fmt.Errorf("更新向量失败: %v", err)
 	}
 
@@ -217,14 +217,14 @@ func UpdateDocument(ctx context.Context, doc *Document) error {
 // DeleteDocument 删除文档
 func DeleteDocument(ctx context.Context, docID uint64) error {
 	// 1. 从数据库删除
-	if err := mysql.GetDB().Delete(&Document{}, docID).Error; err != nil {
+	if err := mysql.GetDB().Table("document").Delete(&Document{}, docID).Error; err != nil {
 		return fmt.Errorf("删除文档失败: %v", err)
 	}
 
 	// 2. 从 Milvus 删除
-	if err := milvus.DeleteVector(ctx, "documents", int64(docID)); err != nil {
+	if err := milvus.DeleteVector(ctx, "document", int64(docID)); err != nil {
 		// 如果 Milvus 删除失败，回滚数据库操作
-		mysql.GetDB().Unscoped().Model(&Document{}).Where("id = ?", docID).Update("deleted_at", nil)
+		mysql.GetDB().Table("document").Unscoped().Model(&Document{}).Where("id = ?", docID).Update("deleted_at", nil)
 		return fmt.Errorf("删除向量失败: %v", err)
 	}
 

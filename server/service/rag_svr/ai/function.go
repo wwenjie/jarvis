@@ -11,7 +11,6 @@ import (
 	"server/framework/milvus"
 	"server/framework/mysql"
 	"server/framework/redis"
-	"server/service/rag_svr/embedding"
 	"server/service/rag_svr/memory"
 )
 
@@ -410,13 +409,13 @@ func ParseFunctionCall(text string) (*FunctionCall, error) {
 // SearchSimilarDocuments 搜索相似文档
 func (c *QwenClient) SearchSimilarDocuments(ctx context.Context, query string, limit int) ([]string, error) {
 	// 生成查询向量
-	queryEmbedding, err := embedding.GetEmbedding(query)
+	queryEmbedding, err := GetEmbedding(query)
 	if err != nil {
 		return nil, fmt.Errorf("生成查询向量失败: %v", err)
 	}
 
 	// 在 Milvus 中搜索相似向量
-	ids, scores, err := milvus.SearchVector(ctx, "documents", queryEmbedding, limit*2) // 获取更多结果用于重排序
+	ids, scores, err := milvus.SearchVector(ctx, "document", queryEmbedding, limit*2) // 获取更多结果用于重排序
 	if err != nil {
 		return nil, fmt.Errorf("搜索向量失败: %v", err)
 	}
@@ -516,27 +515,29 @@ func (f *GetMemoryFunction) Execute(ctx context.Context, args map[string]interfa
 	}
 
 	// 获取记忆信息
-	memories, err := memory.GetInstance().SearchMemories(ctx, 0, fmt.Sprintf("id:%d", uint64(memoryID)), 1)
+	memories, err := memory.GetInstance().SearchMemories(ctx, fmt.Sprintf("id:%d", uint64(memoryID)), 1)
 	if err != nil {
 		logger.Errorf("获取记忆失败: memory_id=%d, error=%v", uint64(memoryID), err)
 		return nil, fmt.Errorf("获取记忆失败: %v", err)
 	}
+
 	if len(memories) == 0 {
-		logger.Errorf("记忆不存在: memory_id=%d", uint64(memoryID))
-		return nil, fmt.Errorf("记忆不存在")
+		return nil, fmt.Errorf("记忆不存在: memory_id=%d", uint64(memoryID))
 	}
 
-	mem := memories[0]
+	memory := memories[0]
 	result := map[string]interface{}{
-		"id":           mem.ID,
-		"user_id":      mem.UserID,
-		"content":      mem.Content,
-		"memory_type":  mem.Type,
-		"importance":   mem.Importance,
-		"created_at":   mem.CreatedAt.Format("2006-01-02 15:04:05"),
-		"expire_time":  mem.ExpiresAt.Format("2006-01-02 15:04:05"),
-		"access_count": mem.AccessCount,
-		"metadata":     mem.Metadata,
+		"memory_id":    memory.ID,
+		"session_id":   memory.SessionID,
+		"user_id":      memory.UserID,
+		"content":      memory.Content,
+		"memory_type":  memory.Type,
+		"importance":   memory.Importance,
+		"metadata":     memory.Metadata,
+		"create_time":  memory.CreatedAt.Format("2006-01-02 15:04:05"),
+		"update_time":  memory.LastAccessed.Format("2006-01-02 15:04:05"),
+		"expire_time":  memory.ExpiresAt.Format("2006-01-02 15:04:05"),
+		"access_count": memory.AccessCount,
 	}
 
 	logger.Infof("获取记忆函数执行成功: memory_id=%d", uint64(memoryID))
