@@ -1772,6 +1772,418 @@ func (x *GetChatRecordsRsp) GetRecords() []*ChatRecord {
 	return nil
 }
 
+// 天气相关消息
+type GetWeatherReq struct {
+	SeqId    uint32 `protobuf:"varint,1,opt,name=seq_id" json:"seq_id,omitempty"`
+	Location string `protobuf:"bytes,2,opt,name=location" json:"location,omitempty"`
+}
+
+func (x *GetWeatherReq) Reset() { *x = GetWeatherReq{} }
+
+func (x *GetWeatherReq) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *GetWeatherReq) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *GetWeatherReq) GetSeqId() uint32 {
+	if x != nil {
+		return x.SeqId
+	}
+	return 0
+}
+
+func (x *GetWeatherReq) GetLocation() string {
+	if x != nil {
+		return x.Location
+	}
+	return ""
+}
+
+type GetWeatherRsp struct {
+	Code    uint32       `protobuf:"varint,1,opt,name=code" json:"code,omitempty"`
+	Msg     string       `protobuf:"bytes,2,opt,name=msg" json:"msg,omitempty"`
+	Weather *WeatherInfo `protobuf:"bytes,3,opt,name=weather" json:"weather,omitempty"`
+}
+
+func (x *GetWeatherRsp) Reset() { *x = GetWeatherRsp{} }
+
+func (x *GetWeatherRsp) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *GetWeatherRsp) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *GetWeatherRsp) GetCode() uint32 {
+	if x != nil {
+		return x.Code
+	}
+	return 0
+}
+
+func (x *GetWeatherRsp) GetMsg() string {
+	if x != nil {
+		return x.Msg
+	}
+	return ""
+}
+
+func (x *GetWeatherRsp) GetWeather() *WeatherInfo {
+	if x != nil {
+		return x.Weather
+	}
+	return nil
+}
+
+type WeatherInfo struct {
+	Location    string  `protobuf:"bytes,1,opt,name=location" json:"location,omitempty"`         // 位置
+	Weather     string  `protobuf:"bytes,2,opt,name=weather" json:"weather,omitempty"`           // 天气状况
+	Temperature float32 `protobuf:"fixed32,3,opt,name=temperature" json:"temperature,omitempty"` // 温度
+	Humidity    float32 `protobuf:"fixed32,4,opt,name=humidity" json:"humidity,omitempty"`       // 湿度
+	WindSpeed   float32 `protobuf:"fixed32,5,opt,name=wind_speed" json:"wind_speed,omitempty"`   // 风速
+	WindDir     string  `protobuf:"bytes,6,opt,name=wind_dir" json:"wind_dir,omitempty"`         // 风向
+	UpdateTime  string  `protobuf:"bytes,7,opt,name=update_time" json:"update_time,omitempty"`   // 更新时间
+}
+
+func (x *WeatherInfo) Reset() { *x = WeatherInfo{} }
+
+func (x *WeatherInfo) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *WeatherInfo) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *WeatherInfo) GetLocation() string {
+	if x != nil {
+		return x.Location
+	}
+	return ""
+}
+
+func (x *WeatherInfo) GetWeather() string {
+	if x != nil {
+		return x.Weather
+	}
+	return ""
+}
+
+func (x *WeatherInfo) GetTemperature() float32 {
+	if x != nil {
+		return x.Temperature
+	}
+	return 0
+}
+
+func (x *WeatherInfo) GetHumidity() float32 {
+	if x != nil {
+		return x.Humidity
+	}
+	return 0
+}
+
+func (x *WeatherInfo) GetWindSpeed() float32 {
+	if x != nil {
+		return x.WindSpeed
+	}
+	return 0
+}
+
+func (x *WeatherInfo) GetWindDir() string {
+	if x != nil {
+		return x.WindDir
+	}
+	return ""
+}
+
+func (x *WeatherInfo) GetUpdateTime() string {
+	if x != nil {
+		return x.UpdateTime
+	}
+	return ""
+}
+
+// 24小时天气预报
+type GetHourlyWeatherReq struct {
+	SeqId    uint32 `protobuf:"varint,1,opt,name=seq_id" json:"seq_id,omitempty"`
+	Location string `protobuf:"bytes,2,opt,name=location" json:"location,omitempty"`
+}
+
+func (x *GetHourlyWeatherReq) Reset() { *x = GetHourlyWeatherReq{} }
+
+func (x *GetHourlyWeatherReq) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *GetHourlyWeatherReq) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *GetHourlyWeatherReq) GetSeqId() uint32 {
+	if x != nil {
+		return x.SeqId
+	}
+	return 0
+}
+
+func (x *GetHourlyWeatherReq) GetLocation() string {
+	if x != nil {
+		return x.Location
+	}
+	return ""
+}
+
+type GetHourlyWeatherRsp struct {
+	Code     uint32           `protobuf:"varint,1,opt,name=code" json:"code,omitempty"`
+	Msg      string           `protobuf:"bytes,2,opt,name=msg" json:"msg,omitempty"`
+	Location string           `protobuf:"bytes,3,opt,name=location" json:"location,omitempty"`
+	Hourly   []*HourlyWeather `protobuf:"bytes,4,rep,name=hourly" json:"hourly,omitempty"`
+}
+
+func (x *GetHourlyWeatherRsp) Reset() { *x = GetHourlyWeatherRsp{} }
+
+func (x *GetHourlyWeatherRsp) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *GetHourlyWeatherRsp) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *GetHourlyWeatherRsp) GetCode() uint32 {
+	if x != nil {
+		return x.Code
+	}
+	return 0
+}
+
+func (x *GetHourlyWeatherRsp) GetMsg() string {
+	if x != nil {
+		return x.Msg
+	}
+	return ""
+}
+
+func (x *GetHourlyWeatherRsp) GetLocation() string {
+	if x != nil {
+		return x.Location
+	}
+	return ""
+}
+
+func (x *GetHourlyWeatherRsp) GetHourly() []*HourlyWeather {
+	if x != nil {
+		return x.Hourly
+	}
+	return nil
+}
+
+type HourlyWeather struct {
+	Time        string  `protobuf:"bytes,1,opt,name=time" json:"time,omitempty"`                 // 时间
+	Weather     string  `protobuf:"bytes,2,opt,name=weather" json:"weather,omitempty"`           // 天气状况
+	Temperature float32 `protobuf:"fixed32,3,opt,name=temperature" json:"temperature,omitempty"` // 温度
+	Humidity    float32 `protobuf:"fixed32,4,opt,name=humidity" json:"humidity,omitempty"`       // 湿度
+	WindSpeed   float32 `protobuf:"fixed32,5,opt,name=wind_speed" json:"wind_speed,omitempty"`   // 风速
+	WindDir     string  `protobuf:"bytes,6,opt,name=wind_dir" json:"wind_dir,omitempty"`         // 风向
+}
+
+func (x *HourlyWeather) Reset() { *x = HourlyWeather{} }
+
+func (x *HourlyWeather) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *HourlyWeather) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *HourlyWeather) GetTime() string {
+	if x != nil {
+		return x.Time
+	}
+	return ""
+}
+
+func (x *HourlyWeather) GetWeather() string {
+	if x != nil {
+		return x.Weather
+	}
+	return ""
+}
+
+func (x *HourlyWeather) GetTemperature() float32 {
+	if x != nil {
+		return x.Temperature
+	}
+	return 0
+}
+
+func (x *HourlyWeather) GetHumidity() float32 {
+	if x != nil {
+		return x.Humidity
+	}
+	return 0
+}
+
+func (x *HourlyWeather) GetWindSpeed() float32 {
+	if x != nil {
+		return x.WindSpeed
+	}
+	return 0
+}
+
+func (x *HourlyWeather) GetWindDir() string {
+	if x != nil {
+		return x.WindDir
+	}
+	return ""
+}
+
+// 15天天气预报
+type GetDailyWeatherReq struct {
+	SeqId    uint32 `protobuf:"varint,1,opt,name=seq_id" json:"seq_id,omitempty"`
+	Location string `protobuf:"bytes,2,opt,name=location" json:"location,omitempty"`
+}
+
+func (x *GetDailyWeatherReq) Reset() { *x = GetDailyWeatherReq{} }
+
+func (x *GetDailyWeatherReq) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *GetDailyWeatherReq) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *GetDailyWeatherReq) GetSeqId() uint32 {
+	if x != nil {
+		return x.SeqId
+	}
+	return 0
+}
+
+func (x *GetDailyWeatherReq) GetLocation() string {
+	if x != nil {
+		return x.Location
+	}
+	return ""
+}
+
+type GetDailyWeatherRsp struct {
+	Code     uint32          `protobuf:"varint,1,opt,name=code" json:"code,omitempty"`
+	Msg      string          `protobuf:"bytes,2,opt,name=msg" json:"msg,omitempty"`
+	Location string          `protobuf:"bytes,3,opt,name=location" json:"location,omitempty"`
+	Daily    []*DailyWeather `protobuf:"bytes,4,rep,name=daily" json:"daily,omitempty"`
+}
+
+func (x *GetDailyWeatherRsp) Reset() { *x = GetDailyWeatherRsp{} }
+
+func (x *GetDailyWeatherRsp) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *GetDailyWeatherRsp) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *GetDailyWeatherRsp) GetCode() uint32 {
+	if x != nil {
+		return x.Code
+	}
+	return 0
+}
+
+func (x *GetDailyWeatherRsp) GetMsg() string {
+	if x != nil {
+		return x.Msg
+	}
+	return ""
+}
+
+func (x *GetDailyWeatherRsp) GetLocation() string {
+	if x != nil {
+		return x.Location
+	}
+	return ""
+}
+
+func (x *GetDailyWeatherRsp) GetDaily() []*DailyWeather {
+	if x != nil {
+		return x.Daily
+	}
+	return nil
+}
+
+type DailyWeather struct {
+	Date      string  `protobuf:"bytes,1,opt,name=date" json:"date,omitempty"`               // 日期
+	TextDay   string  `protobuf:"bytes,2,opt,name=text_day" json:"text_day,omitempty"`       // 白天天气
+	TextNight string  `protobuf:"bytes,3,opt,name=text_night" json:"text_night,omitempty"`   // 夜间天气
+	HighTemp  float32 `protobuf:"fixed32,4,opt,name=high_temp" json:"high_temp,omitempty"`   // 最高温度
+	LowTemp   float32 `protobuf:"fixed32,5,opt,name=low_temp" json:"low_temp,omitempty"`     // 最低温度
+	Rainfall  float32 `protobuf:"fixed32,6,opt,name=rainfall" json:"rainfall,omitempty"`     // 降雨量
+	Precip    float32 `protobuf:"fixed32,7,opt,name=precip" json:"precip,omitempty"`         // 降水概率
+	WindDir   string  `protobuf:"bytes,8,opt,name=wind_dir" json:"wind_dir,omitempty"`       // 风向
+	WindSpeed float32 `protobuf:"fixed32,9,opt,name=wind_speed" json:"wind_speed,omitempty"` // 风速
+	WindScale string  `protobuf:"bytes,10,opt,name=wind_scale" json:"wind_scale,omitempty"`  // 风力等级
+	Humidity  float32 `protobuf:"fixed32,11,opt,name=humidity" json:"humidity,omitempty"`    // 湿度
+}
+
+func (x *DailyWeather) Reset() { *x = DailyWeather{} }
+
+func (x *DailyWeather) Marshal(in []byte) ([]byte, error) { return prutal.MarshalAppend(in, x) }
+
+func (x *DailyWeather) Unmarshal(in []byte) error { return prutal.Unmarshal(in, x) }
+
+func (x *DailyWeather) GetDate() string {
+	if x != nil {
+		return x.Date
+	}
+	return ""
+}
+
+func (x *DailyWeather) GetTextDay() string {
+	if x != nil {
+		return x.TextDay
+	}
+	return ""
+}
+
+func (x *DailyWeather) GetTextNight() string {
+	if x != nil {
+		return x.TextNight
+	}
+	return ""
+}
+
+func (x *DailyWeather) GetHighTemp() float32 {
+	if x != nil {
+		return x.HighTemp
+	}
+	return 0
+}
+
+func (x *DailyWeather) GetLowTemp() float32 {
+	if x != nil {
+		return x.LowTemp
+	}
+	return 0
+}
+
+func (x *DailyWeather) GetRainfall() float32 {
+	if x != nil {
+		return x.Rainfall
+	}
+	return 0
+}
+
+func (x *DailyWeather) GetPrecip() float32 {
+	if x != nil {
+		return x.Precip
+	}
+	return 0
+}
+
+func (x *DailyWeather) GetWindDir() string {
+	if x != nil {
+		return x.WindDir
+	}
+	return ""
+}
+
+func (x *DailyWeather) GetWindSpeed() float32 {
+	if x != nil {
+		return x.WindSpeed
+	}
+	return 0
+}
+
+func (x *DailyWeather) GetWindScale() string {
+	if x != nil {
+		return x.WindScale
+	}
+	return ""
+}
+
+func (x *DailyWeather) GetHumidity() float32 {
+	if x != nil {
+		return x.Humidity
+	}
+	return 0
+}
+
 type RagService interface {
 	Test(ctx context.Context, req *TestReq) (res *TestRsp, err error)
 	Test2(ctx context.Context, req *Test2Req) (res *Test2Rsp, err error)
@@ -1791,4 +2203,7 @@ type RagService interface {
 	DeleteMemory(ctx context.Context, req *DeleteMemoryReq) (res *DeleteMemoryRsp, err error)
 	AddChatRecord(ctx context.Context, req *AddChatRecordReq) (res *AddChatRecordRsp, err error)
 	GetChatRecords(ctx context.Context, req *GetChatRecordsReq) (res *GetChatRecordsRsp, err error)
+	GetWeather(ctx context.Context, req *GetWeatherReq) (res *GetWeatherRsp, err error)
+	GetHourlyWeather(ctx context.Context, req *GetHourlyWeatherReq) (res *GetHourlyWeatherRsp, err error)
+	GetDailyWeather(ctx context.Context, req *GetDailyWeatherReq) (res *GetDailyWeatherRsp, err error)
 }

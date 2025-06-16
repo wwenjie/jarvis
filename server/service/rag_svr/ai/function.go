@@ -216,7 +216,7 @@ func (f *SetReminderFunction) Execute(ctx context.Context, args map[string]inter
 	}
 
 	// 保存到数据库
-	if err := mysql.GetDB().Create(reminder).Error; err != nil {
+	if err := mysql.GetDB().Table("reminder").Create(reminder).Error; err != nil {
 		logger.Errorf("创建提醒记录失败: error=%v", err)
 		return nil, fmt.Errorf("创建提醒记录失败: %v", err)
 	}
@@ -272,7 +272,7 @@ func CheckReminders(ctx context.Context) ([]*mysql.Reminder, error) {
 
 	// 获取所有待处理的提醒
 	var reminders []*mysql.Reminder
-	if err := mysql.GetDB().
+	if err := mysql.GetDB().Table("reminder").
 		Where("status = ? AND remind_time <= ?", "pending", time.Now()).
 		Find(&reminders).Error; err != nil {
 		logger.Errorf("获取提醒事项失败: error=%v", err)
@@ -283,7 +283,7 @@ func CheckReminders(ctx context.Context) ([]*mysql.Reminder, error) {
 	for _, reminder := range reminders {
 		reminder.Status = "triggered"
 		reminder.UpdateTime = time.Now()
-		if err := mysql.GetDB().Save(reminder).Error; err != nil {
+		if err := mysql.GetDB().Table("reminder").Save(reminder).Error; err != nil {
 			logger.Errorf("更新提醒状态失败: reminder_id=%d, error=%v", reminder.ID, err)
 			continue
 		}
@@ -430,7 +430,7 @@ func (c *QwenClient) SearchSimilarDocuments(ctx context.Context, query string, l
 
 	// 获取对应的文档记录
 	var documents []*mysql.Document
-	if err := mysql.GetDB().Where("id IN ?", ids).Find(&documents).Error; err != nil {
+	if err := mysql.GetDB().Table("document").Where("doc_id IN ?", ids).Find(&documents).Error; err != nil {
 		return nil, fmt.Errorf("获取文档记录失败: %v", err)
 	}
 
@@ -449,7 +449,7 @@ func (c *QwenClient) SearchSimilarDocuments(ctx context.Context, query string, l
 	for _, doc := range documents {
 		docScores = append(docScores, docScore{
 			doc:   doc,
-			score: scoreMap[doc.ID],
+			score: scoreMap[doc.DocID],
 		})
 	}
 
@@ -466,7 +466,7 @@ func (c *QwenClient) SearchSimilarDocuments(ctx context.Context, query string, l
 	// 构建返回结果
 	results := make([]string, len(docScores))
 	for i, ds := range docScores {
-		results[i] = fmt.Sprintf("标题: %s\n内容: %s\n相关度: %.2f", ds.doc.Title, ds.doc.Content, ds.score)
+		results[i] = fmt.Sprintf("标题: %s\n内容: %s\n相关度: %.2f", ds.doc.Title, ds.doc.Metadata, ds.score)
 	}
 
 	return results, nil
@@ -485,7 +485,7 @@ func (c *QwenClient) GetUserHistory(ctx context.Context, userID string) ([]strin
 
 	// 从数据库获取
 	var records []*mysql.ChatRecord
-	if err := mysql.GetDB().
+	if err := mysql.GetDB().Table("chat_record").
 		Where("user_id = ?", userID).
 		Order("created_at DESC").
 		Limit(100). // 限制返回最近100条记录

@@ -5,7 +5,11 @@ go 1.23.5
 require (
 	github.com/cloudwego/kitex v0.13.1
 	github.com/cloudwego/prutal v0.1.0
+	github.com/neurosnap/sentences v1.1.2
+	github.com/yanyiwu/gojieba v1.4.6
 	go.mongodb.org/mongo-driver v1.14.0
+	google.golang.org/grpc v1.59.0
+	gorm.io/gorm v1.25.8
 	server/framework v0.0.0
 )
 
@@ -83,12 +87,10 @@ require (
 	google.golang.org/genproto v0.0.0-20231012201019-e917dd12ba7a // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20231016165738-49dd2c1f3d0b // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231016165738-49dd2c1f3d0b // indirect
-	google.golang.org/grpc v1.59.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.5.6 // indirect
-	gorm.io/gorm v1.25.8 // indirect
 )
 
 replace server/framework => ../../framework

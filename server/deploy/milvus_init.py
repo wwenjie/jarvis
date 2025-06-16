@@ -15,9 +15,9 @@ COLLECTIONS_CONFIG = {
         "description": "对话记忆向量集合",
         "shards_num": 1
     },
-    "document": {
+    "document_chunk": {
         "dim": 1024,
-        "description": "文档向量集合",
+        "description": "文档块向量集合",
         "shards_num": 1
     }
 }
@@ -105,21 +105,28 @@ def main():
         create_collection(collection_name)
         print("\n" + "="*50 + "\n")
 
+    # 查看所有collection
+    print("查看所有collection", utility.list_collections())
+
     # 查询当前已有的全部数据
     # print("查询当前已有的全部数据")
-    collection = Collection(name="chat_memory")
-    results = collection.query(
-        expr="id > 0",  # 查询所有数据n  
-        output_fields=["id", "vector"]
-    )
-    print(f"总数据量: {len(results)}")
-    for i, result in enumerate(results):
-        print(f"\n记录 {i+1}:")
-        print(f"ID: {result['id']}")
-        print(f"向量维度: {len(result['vector'])}")
-        # 删除
-        collection.delete(expr=f"id == '{result['id']}'")
-    collection.flush()
+    # collection = Collection(name="chat_memory")
+    # results = collection.query(
+    #     expr="id > 0",  # 查询所有数据n  
+    #     output_fields=["id", "vector"]
+    # )
+    # print(f"总数据量: {len(results)}")
+    # for i, result in enumerate(results):
+    #     print(f"\n记录 {i+1}:")
+    #     print(f"ID: {result['id']}")
+    #     print(f"向量维度: {len(result['vector'])}")
+    #     # 删除
+    #     collection.delete(expr=f"id == '{result['id']}'")
+    # collection.flush()
+
+    # 删除所有collection
+    # for collection_name in utility.list_collections():
+    #     utility.drop_collection(collection_name)
 
 if __name__ == "__main__":
     main() 
