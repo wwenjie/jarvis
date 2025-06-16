@@ -47,9 +47,13 @@ func InitMySQL() error {
 	sqlDB.SetMaxOpenConns(100)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
-	// 自动迁移表结构
-	if err := autoMigrate(); err != nil {
-		return fmt.Errorf("自动迁移表结构失败: %v", err)
+	// 不再自动迁移表结构
+	// if err := autoMigrate(); err != nil {
+	// 	return fmt.Errorf("自动迁移表结构失败: %v", err)
+	// }
+	// 只检查索引
+	if err := checkIndexes(); err != nil {
+		return fmt.Errorf("检查索引失败: %v", err)
 	}
 
 	logger.Infof("MySQL连接成功: %s:%d", config.GlobalConfig.MySQL.Host, config.GlobalConfig.MySQL.Port)
@@ -62,20 +66,74 @@ func GetDB() *gorm.DB {
 }
 
 // autoMigrate 自动迁移表结构
-func autoMigrate() error {
-	// 创建表
-	if err := db.AutoMigrate(
-		&IDGenerator{},
-		&User{},
-		&ChatSession{},
-		&ChatRecord{},
-		&Document{},
-		&ChatMemory{},
-		&Reminder{},
-	); err != nil {
-		return err
-	}
+// func autoMigrate() error {
+// 	// 创建表
+// 	if err := db.AutoMigrate(
+// 		&IDGenerator{},
+// 		&User{},
+// 		&ChatSession{},
+// 		&ChatRecord{},
+// 		&ChatMemory{},
+// 		&Reminder{},
+// 		&Document{},
+// 		&DocumentParagraph{},
+// 		&DocumentSentence{},
+// 		&DocumentChunk{},
+// 	); err != nil {
+// 		return err
+// 	}
 
+// 	// 创建索引
+// 	indexes := []struct {
+// 		table   string
+// 		columns []string
+// 	}{
+// 		{"id_generator", []string{"id_name"}},
+// 		{"chat_session", []string{"user_id", "status"}},
+// 		{"chat_session", []string{"last_active_time"}},
+// 		{"chat_record", []string{"session_id", "created_at"}},
+// 		{"chat_record", []string{"user_id", "created_at"}},
+// 		{"chat_memory", []string{"user_id", "memory_type"}},
+// 		{"chat_memory", []string{"expire_time"}},
+// 		{"chat_memory", []string{"access_count"}},
+// 		{"document", []string{"user_id", "status"}},
+// 		{"document_paragraph", []string{"doc_id"}},
+// 		{"document_sentence", []string{"paragraph_id"}},
+// 		{"document_chunk", []string{"paragraph_id"}},
+// 	}
+
+// 	for _, idx := range indexes {
+// 		indexName := fmt.Sprintf("idx_%s_%s", idx.table, strings.Join(idx.columns, "_"))
+
+// 		// 检查索引是否存在
+// 		var count int64
+// 		checkSQL := fmt.Sprintf(`
+// 			SELECT COUNT(1)
+// 			FROM information_schema.statistics
+// 			WHERE table_schema = DATABASE()
+// 			AND table_name = '%s'
+// 			AND index_name = '%s'`,
+// 			idx.table, indexName)
+
+// 		if err := db.Raw(checkSQL).Count(&count).Error; err != nil {
+// 			return fmt.Errorf("检查索引 %s 是否存在失败: %v", indexName, err)
+// 		}
+
+// 		// 如果索引不存在，则创建
+// 		if count == 0 {
+// 			createSQL := fmt.Sprintf("CREATE INDEX %s ON %s (%s)",
+// 				indexName, idx.table, strings.Join(idx.columns, ", "))
+// 			if err := db.Exec(createSQL).Error; err != nil {
+// 				return fmt.Errorf("创建索引 %s 失败: %v", indexName, err)
+// 			}
+// 		}
+// 	}
+
+// 	return nil
+// }
+
+// checkIndexes 只检查索引
+func checkIndexes() error {
 	// 创建索引
 	indexes := []struct {
 		table   string
@@ -86,10 +144,13 @@ func autoMigrate() error {
 		{"chat_session", []string{"last_active_time"}},
 		{"chat_record", []string{"session_id", "created_at"}},
 		{"chat_record", []string{"user_id", "created_at"}},
-		{"document", []string{"user_id", "created_at"}},
 		{"chat_memory", []string{"user_id", "memory_type"}},
 		{"chat_memory", []string{"expire_time"}},
 		{"chat_memory", []string{"access_count"}},
+		{"document", []string{"user_id", "status"}},
+		{"document_paragraph", []string{"doc_id"}},
+		{"document_sentence", []string{"paragraph_id"}},
+		{"document_chunk", []string{"paragraph_id"}},
 	}
 
 	for _, idx := range indexes {
@@ -190,12 +251,11 @@ func (ChatRecord) TableName() string {
 
 // Document 文档表
 type Document struct {
-	ID        uint64 `gorm:"primaryKey"`
-	UserID    uint64 `gorm:"not null"`
-	Title     string `gorm:"size:200;not null"`
-	Content   string `gorm:"type:text;not null"`
-	Status    string `gorm:"size:20;not null;default:'active'"`
-	Metadata  string `gorm:"type:json"`
+	DocID     uint64 `gorm:"column:doc_id;primaryKey"`
+	UserID    uint64 `gorm:"column:user_id;not null"`
+	Title     string `gorm:"column:title;size:200;not null"`
+	Status    string `gorm:"column:status;size:20;not null;default:'active'"`
+	Metadata  string `gorm:"column:metadata;type:json"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -313,4 +373,52 @@ func (s *ChatSession) SetMetadata(metadata map[string]interface{}) error {
 	}
 	s.Metadata = string(data)
 	return nil
+}
+
+// DocumentParagraph 文档段落表
+type DocumentParagraph struct {
+	ParagraphID uint64 `gorm:"column:paragraph_id;primaryKey"`
+	DocID       uint64 `gorm:"column:doc_id;not null"`
+	Content     string `gorm:"column:content;type:text;not null"`
+	OrderNum    uint32 `gorm:"column:order_num;not null"`
+	Keywords    string `gorm:"column:keywords;type:json"`
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+func (DocumentParagraph) TableName() string {
+	return "document_paragraph"
+}
+
+// DocumentSentence 文档句子表
+type DocumentSentence struct {
+	SentenceID  uint64 `gorm:"column:sentence_id;primaryKey"`
+	DocID       uint64 `gorm:"column:doc_id;not null"`
+	ParagraphID uint64 `gorm:"column:paragraph_id;not null"`
+	Content     string `gorm:"column:content;type:text;not null"`
+	OrderNum    uint32 `gorm:"column:order_num;not null"`
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+func (DocumentSentence) TableName() string {
+	return "document_sentence"
+}
+
+// DocumentChunk 文档块表
+type DocumentChunk struct {
+	ChunkID     uint64 `gorm:"column:chunk_id;primaryKey"`
+	DocID       uint64 `gorm:"column:doc_id;not null"`
+	ParagraphID uint64 `gorm:"column:paragraph_id;not null"`
+	SentenceID1 uint64 `gorm:"column:sentence_id_1;not null"`
+	SentenceID2 uint64 `gorm:"column:sentence_id_2;not null"`
+	SentenceID3 uint64 `gorm:"column:sentence_id_3;not null"`
+	Keywords    string `gorm:"column:keywords;type:json"`
+	Embedding   []byte `gorm:"column:embedding;type:blob"`
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+func (DocumentChunk) TableName() string {
+	return "document_chunk"
 }

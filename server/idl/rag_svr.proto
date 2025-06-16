@@ -315,6 +315,77 @@ message GetChatRecordsRsp {
     repeated ChatRecord records = 6;
 }
 
+// 天气相关消息
+message GetWeatherReq {
+    uint32 seq_id = 1;
+    string location = 2;
+}
+
+message GetWeatherRsp {
+    uint32 code = 1;
+    string msg = 2;
+    WeatherInfo weather = 3;
+}
+
+message WeatherInfo {
+    string location = 1;    // 位置
+    string weather = 2;     // 天气状况
+    float temperature = 3;  // 温度
+    float humidity = 4;     // 湿度
+    float wind_speed = 5;   // 风速
+    string wind_dir = 6;    // 风向
+    string update_time = 7; // 更新时间
+}
+
+// 24小时天气预报
+message GetHourlyWeatherReq {
+    uint32 seq_id = 1;
+    string location = 2;
+}
+
+message GetHourlyWeatherRsp {
+    uint32 code = 1;
+    string msg = 2;
+    string location = 3;
+    repeated HourlyWeather hourly = 4;
+}
+
+message HourlyWeather {
+    string time = 1;        // 时间
+    string weather = 2;     // 天气状况
+    float temperature = 3;  // 温度
+    float humidity = 4;     // 湿度
+    float wind_speed = 5;   // 风速
+    string wind_dir = 6;    // 风向
+}
+
+// 15天天气预报
+message GetDailyWeatherReq {
+    uint32 seq_id = 1;
+    string location = 2;
+}
+
+message GetDailyWeatherRsp {
+    uint32 code = 1;
+    string msg = 2;
+    string location = 3;
+    repeated DailyWeather daily = 4;
+}
+
+message DailyWeather {
+    string date = 1;        // 日期
+    string text_day = 2;    // 白天天气
+    string text_night = 3;  // 夜间天气
+    float high_temp = 4;    // 最高温度
+    float low_temp = 5;     // 最低温度
+    float rainfall = 6;     // 降雨量
+    float precip = 7;       // 降水概率
+    string wind_dir = 8;    // 风向
+    float wind_speed = 9;   // 风速
+    string wind_scale = 10; // 风力等级
+    float humidity = 11;    // 湿度
+}
+
 // 定义用户服务
 service RagService {
   // 获取用户信息的RPC方法
@@ -346,4 +417,9 @@ service RagService {
   // 聊天记录管理
   rpc AddChatRecord(AddChatRecordReq) returns (AddChatRecordRsp);
   rpc GetChatRecords(GetChatRecordsReq) returns (GetChatRecordsRsp);
+
+  // 天气服务
+  rpc GetWeather(GetWeatherReq) returns (GetWeatherRsp);
+  rpc GetHourlyWeather(GetHourlyWeatherReq) returns (GetHourlyWeatherRsp);
+  rpc GetDailyWeather(GetDailyWeatherReq) returns (GetDailyWeatherRsp);
 }

@@ -4,18 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"server/framework/id_generator"
 	"server/framework/logger"
+	"server/framework/milvus"
 	"server/framework/mongodb"
 	"server/framework/mysql"
 	"server/service/rag_svr/ai"
 	rag_svr "server/service/rag_svr/kitex_gen/rag_svr"
 	"server/service/rag_svr/memory"
 
+	"github.com/neurosnap/sentences"
+	"github.com/yanyiwu/gojieba"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -367,16 +370,27 @@ func (s *RagServiceImpl) AddDocument(ctx context.Context, req *rag_svr.AddDocume
 		}, nil
 	}
 
+	// 开始事务
+	tx := mysql.GetDB().Begin()
+	if tx.Error != nil {
+		logger.Errorf("开启事务失败: %v", tx.Error)
+		return &rag_svr.AddDocumentRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("开启事务失败: %v", tx.Error),
+		}, nil
+	}
+
 	// 创建文档
 	doc := &mysql.Document{
-		ID:       docID,
+		DocID:    docID,
 		UserID:   req.UserId,
 		Title:    req.Title,
-		Content:  req.Content,
+		Status:   "active",
 		Metadata: req.Metadata,
 	}
 
-	if err := mysql.GetDB().Table("document").Create(doc).Error; err != nil {
+	if err := tx.Create(doc).Error; err != nil {
+		tx.Rollback()
 		logger.Errorf("创建文档失败: %v", err)
 		return &rag_svr.AddDocumentRsp{
 			Code: 1,
@@ -384,94 +398,279 @@ func (s *RagServiceImpl) AddDocument(ctx context.Context, req *rag_svr.AddDocume
 		}, nil
 	}
 
-	// 将文档存储到MongoDB
-	mongoDoc := bson.M{
-		"doc_id":      doc.ID,
-		"user_id":     doc.UserID,
-		"title":       doc.Title,
-		"content":     doc.Content,
-		"metadata":    doc.Metadata,
-		"create_time": doc.CreatedAt,
-		"update_time": doc.UpdatedAt,
+	// 使用 neurosnap/sentences 切分段落和句子
+	tokenizer := sentences.NewSentenceTokenizer(nil)
+
+	// 按段落分割
+	paragraphs := strings.Split(req.Content, "\n\n")
+	paragraphs = filterEmptyStrings(paragraphs)
+
+	// 初始化结巴分词
+	jieba := gojieba.NewJieba()
+	defer jieba.Free()
+
+	// 处理每个段落
+	for i, paraContent := range paragraphs {
+		// 获取段落ID
+		paraID := id_generator.GetInstance().GetDocumentParagraphID()
+		if paraID == 0 {
+			tx.Rollback()
+			logger.Errorf("获取段落ID失败")
+			return &rag_svr.AddDocumentRsp{
+				Code: 1,
+				Msg:  "获取段落ID失败",
+			}, nil
+		}
+
+		// 提取段落关键词
+		keywords := jieba.Extract(paraContent, 5)
+		keywordsJSON, _ := json.Marshal(keywords)
+
+		// 创建段落
+		para := &mysql.DocumentParagraph{
+			ParagraphID: paraID,
+			DocID:       docID,
+			Content:     paraContent,
+			OrderNum:    uint32(i + 1),
+			Keywords:    string(keywordsJSON),
+		}
+
+		if err := tx.Create(para).Error; err != nil {
+			tx.Rollback()
+			logger.Errorf("创建段落失败: %v", err)
+			return &rag_svr.AddDocumentRsp{
+				Code: 1,
+				Msg:  fmt.Sprintf("创建段落失败: %v", err),
+			}, nil
+		}
+
+		// 切分句子
+		sentences := tokenizer.Tokenize(paraContent)
+		sentenceIDs := make([]uint64, len(sentences))
+
+		// 保存句子
+		for j, sent := range sentences {
+			// 获取句子ID
+			sentID := id_generator.GetInstance().GetDocumentSentenceID()
+			if sentID == 0 {
+				tx.Rollback()
+				logger.Errorf("获取句子ID失败")
+				return &rag_svr.AddDocumentRsp{
+					Code: 1,
+					Msg:  "获取句子ID失败",
+				}, nil
+			}
+
+			sentenceIDs[j] = sentID
+
+			// 创建句子
+			sent := &mysql.DocumentSentence{
+				SentenceID:  sentID,
+				DocID:       docID,
+				ParagraphID: paraID,
+				Content:     sent.Text,
+				OrderNum:    uint32(j + 1),
+			}
+
+			if err := tx.Create(sent).Error; err != nil {
+				tx.Rollback()
+				logger.Errorf("创建句子失败: %v", err)
+				return &rag_svr.AddDocumentRsp{
+					Code: 1,
+					Msg:  fmt.Sprintf("创建句子失败: %v", err),
+				}, nil
+			}
+		}
+
+		// 创建滑动窗口
+		for j := 0; j < len(sentenceIDs)-2; j += 2 {
+			// 获取块ID
+			chunkID := id_generator.GetInstance().GetDocumentChunkID()
+			if chunkID == 0 {
+				tx.Rollback()
+				logger.Errorf("获取块ID失败")
+				return &rag_svr.AddDocumentRsp{
+					Code: 1,
+					Msg:  "获取块ID失败",
+				}, nil
+			}
+
+			// 获取块内容
+			chunkContent := sentences[j].Text + " " + sentences[j+1].Text + " " + sentences[j+2].Text
+
+			// 提取块关键词
+			chunkKeywords := jieba.Extract(chunkContent, 5)
+			chunkKeywordsJSON, _ := json.Marshal(chunkKeywords)
+
+			// 生成块的向量表示
+			embedding, err := ai.GetEmbedding(chunkContent)
+			if err != nil {
+				tx.Rollback()
+				logger.Errorf("生成块向量失败: %v", err)
+				return &rag_svr.AddDocumentRsp{
+					Code: 1,
+					Msg:  fmt.Sprintf("生成块向量失败: %v", err),
+				}, nil
+			}
+
+			// 将 embedding 转换为字节数组
+			embeddingBytes, err := json.Marshal(embedding)
+			if err != nil {
+				tx.Rollback()
+				logger.Errorf("序列化向量失败: %v", err)
+				return &rag_svr.AddDocumentRsp{
+					Code: 1,
+					Msg:  fmt.Sprintf("序列化向量失败: %v", err),
+				}, nil
+			}
+
+			// 创建块记录
+			chunk := &mysql.DocumentChunk{
+				ChunkID:     chunkID,
+				DocID:       docID,
+				ParagraphID: paraID,
+				SentenceID1: sentenceIDs[j],
+				SentenceID2: sentenceIDs[j+1],
+				SentenceID3: sentenceIDs[j+2],
+				Keywords:    string(chunkKeywordsJSON),
+				Embedding:   embeddingBytes,
+			}
+
+			if err := tx.Create(chunk).Error; err != nil {
+				tx.Rollback()
+				logger.Errorf("创建块失败: %v", err)
+				return &rag_svr.AddDocumentRsp{
+					Code: 1,
+					Msg:  fmt.Sprintf("创建块失败: %v", err),
+				}, nil
+			}
+
+			// 将向量存入 Milvus
+			if err := milvus.InsertVector(ctx, milvus.DocumentCollectionName, int64(chunkID), embedding); err != nil {
+				tx.Rollback()
+				logger.Errorf("存储向量到 Milvus 失败: %v", err)
+				return &rag_svr.AddDocumentRsp{
+					Code: 1,
+					Msg:  fmt.Sprintf("存储向量到 Milvus 失败: %v", err),
+				}, nil
+			}
+		}
 	}
 
-	if _, err := mongodb.InsertOne(ctx, "document", mongoDoc); err != nil {
-		logger.Errorf("存储文档到MongoDB失败: %v", err)
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		logger.Errorf("提交事务失败: %v", err)
 		return &rag_svr.AddDocumentRsp{
 			Code: 1,
-			Msg:  fmt.Sprintf("存储文档到MongoDB失败: %v", err),
+			Msg:  fmt.Sprintf("提交事务失败: %v", err),
 		}, nil
 	}
 
-	logger.Infof("文档添加成功: doc_id=%d", doc.ID)
+	logger.Infof("文档添加成功: doc_id=%d", docID)
 
 	return &rag_svr.AddDocumentRsp{
 		Code:  0,
 		Msg:   "success",
-		DocId: doc.ID,
+		DocId: docID,
 	}, nil
 }
 
-// SearchDocument implements the RagServiceImpl interface.
+// filterEmptyStrings 过滤空字符串
+func filterEmptyStrings(strs []string) []string {
+	var result []string
+	for _, str := range strs {
+		if str = strings.TrimSpace(str); str != "" {
+			result = append(result, str)
+		}
+	}
+	return result
+}
+
+// SearchDocument 实现搜索文档
 func (s *RagServiceImpl) SearchDocument(ctx context.Context, req *rag_svr.SearchDocumentReq) (resp *rag_svr.SearchDocumentRsp, err error) {
 	logger.Infof("搜索文档请求: user_id=%d, query=%s, top_k=%d", req.UserId, req.Query, req.TopK)
 
-	// 构建搜索条件
-	filter := bson.M{
-		"user_id": req.UserId,
-		"$text": bson.M{
-			"$search": req.Query,
-		},
-	}
-
-	// 设置搜索选项
-	opts := options.Find().
-		SetLimit(int64(req.TopK)).
-		SetSort(bson.M{"score": bson.M{"$meta": "textScore"}})
-
-	// 执行搜索
-	cursor, err := mongodb.Find(ctx, "document", filter, opts)
+	// 生成查询文本的向量表示
+	queryEmbedding, err := ai.GetEmbedding(req.Query)
 	if err != nil {
-		logger.Errorf("搜索文档失败: %v", err)
+		logger.Errorf("生成查询向量失败: %v", err)
 		return &rag_svr.SearchDocumentRsp{
 			Code: 1,
-			Msg:  fmt.Sprintf("搜索文档失败: %v", err),
+			Msg:  fmt.Sprintf("生成查询向量失败: %v", err),
 		}, nil
 	}
-	defer cursor.Close(ctx)
 
-	// 解析结果
+	// 从 Milvus 搜索相似向量
+	ids, scores, err := milvus.SearchVector(ctx, "document", queryEmbedding, int(req.TopK*2))
+	if err != nil {
+		logger.Errorf("向量搜索失败: %v", err)
+		return &rag_svr.SearchDocumentRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("向量搜索失败: %v", err),
+		}, nil
+	}
+
+	// 初始化结巴分词
+	jieba := gojieba.NewJieba()
+	defer jieba.Free()
+
+	// 提取查询关键词
+	queryKeywords := jieba.Extract(req.Query, 5)
+	queryKeywordsStr := strings.Join(queryKeywords, " ")
+
+	// 构建关键词搜索条件
+	keywordCondition := "MATCH(keywords) AGAINST(? IN BOOLEAN MODE)"
+
+	// 获取相关窗口的详细信息
+	var chunks []mysql.DocumentChunk
+	if err := mysql.GetDB().Where("chunk_id IN ? AND "+keywordCondition,
+		ids, queryKeywordsStr).Find(&chunks).Error; err != nil {
+		logger.Errorf("获取文档块详情失败: %v", err)
+		return &rag_svr.SearchDocumentRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("获取文档块详情失败: %v", err),
+		}, nil
+	}
+
+	// 获取相关文档
 	var documents []*rag_svr.Document
-	var scores []float32
 
-	for cursor.Next(ctx) {
-		var doc bson.M
-		if err := cursor.Decode(&doc); err != nil {
-			logger.Errorf("解析文档失败: %v", err)
+	for _, chunk := range chunks {
+		// 获取文档信息
+		var doc mysql.Document
+		if err := mysql.GetDB().Table("document").First(&doc, chunk.DocID).Error; err != nil {
+			logger.Errorf("获取文档信息失败: %v", err)
 			continue
 		}
 
-		// 获取文档详情
-		var mysqlDoc mysql.Document
-		if err := mysql.GetDB().Table("document").Model(&mysql.Document{}).First(&mysqlDoc, doc["doc_id"]).Error; err != nil {
-			logger.Errorf("获取文档详情失败: %v", err)
+		// 获取块中的句子
+		var sentences []mysql.DocumentSentence
+		if err := mysql.GetDB().Table("document_sentence").Where("sentence_id IN ?",
+			[]uint64{chunk.SentenceID1, chunk.SentenceID2, chunk.SentenceID3}).
+			Find(&sentences).Error; err != nil {
+			logger.Errorf("获取句子信息失败: %v", err)
 			continue
 		}
+
+		// 构建文档内容
+		content := ""
+		for _, sent := range sentences {
+			content += sent.Content + " "
+		}
+
+		// 计算相关性分数
+		score := calculateRelevanceScore(chunk, queryKeywords)
 
 		documents = append(documents, &rag_svr.Document{
-			DocId:      mysqlDoc.ID,
-			UserId:     mysqlDoc.UserID,
-			Title:      mysqlDoc.Title,
-			Content:    mysqlDoc.Content,
-			Metadata:   mysqlDoc.Metadata,
-			CreateTime: mysqlDoc.CreatedAt.Format(time.RFC3339),
-			UpdateTime: mysqlDoc.UpdatedAt.Format(time.RFC3339),
+			DocId:      doc.DocID,
+			UserId:     doc.UserID,
+			Title:      doc.Title,
+			Content:    content,
+			Metadata:   doc.Metadata,
+			CreateTime: doc.CreatedAt.Format(time.RFC3339),
+			UpdateTime: doc.UpdatedAt.Format(time.RFC3339),
 		})
-
-		// 获取相关性分数
-		if score, ok := doc["score"].(float64); ok {
-			scores = append(scores, float32(score))
-		}
+		scores = append(scores, score)
 	}
 
 	logger.Infof("文档搜索完成: 找到%d个结果", len(documents))
@@ -482,6 +681,29 @@ func (s *RagServiceImpl) SearchDocument(ctx context.Context, req *rag_svr.Search
 		Documents: documents,
 		Scores:    scores,
 	}, nil
+}
+
+// calculateRelevanceScore 计算相关性分数
+func calculateRelevanceScore(chunk mysql.DocumentChunk, queryKeywords []string) float32 {
+	// 解析块关键词
+	var chunkKeywords []string
+	if err := json.Unmarshal([]byte(chunk.Keywords), &chunkKeywords); err != nil {
+		return 0
+	}
+
+	// 计算关键词匹配度
+	matchedKeywords := 0
+	for _, qk := range queryKeywords {
+		for _, ck := range chunkKeywords {
+			if qk == ck {
+				matchedKeywords++
+				break
+			}
+		}
+	}
+
+	// 计算分数 (关键词匹配度 / 查询关键词总数)
+	return float32(matchedKeywords) / float32(len(queryKeywords))
 }
 
 // GetSessionList implements the RagServiceImpl interface.
@@ -621,7 +843,7 @@ func (s *RagServiceImpl) CleanInactiveSessions(ctx context.Context, req *rag_svr
 	}, nil
 }
 
-// ListDocument implements the RagServiceImpl interface.
+// ListDocument 实现搜索文档
 func (s *RagServiceImpl) ListDocument(ctx context.Context, req *rag_svr.ListDocumentReq) (resp *rag_svr.ListDocumentRsp, err error) {
 	logger.Infof("获取文档列表请求: user_id=%d, page=%d, page_size=%d", req.UserId, req.Page, req.PageSize)
 
@@ -658,10 +880,10 @@ func (s *RagServiceImpl) ListDocument(ctx context.Context, req *rag_svr.ListDocu
 	docList := make([]*rag_svr.Document, 0, len(documents))
 	for _, doc := range documents {
 		docList = append(docList, &rag_svr.Document{
-			DocId:      doc.ID,
+			DocId:      doc.DocID,
 			UserId:     doc.UserID,
 			Title:      doc.Title,
-			Content:    doc.Content,
+			Content:    "", // 文档内容不返回
 			Metadata:   doc.Metadata,
 			CreateTime: doc.CreatedAt.Format(time.RFC3339),
 			UpdateTime: doc.UpdatedAt.Format(time.RFC3339),
@@ -1116,4 +1338,103 @@ func (s *RagServiceImpl) DeleteMemory(ctx context.Context, req *rag_svr.DeleteMe
 		Code: 0,
 		Msg:  "success",
 	}, nil
+}
+
+// GetWeather implements the RagServiceImpl interface.
+func (s *RagServiceImpl) GetWeather(ctx context.Context, req *rag_svr.GetWeatherReq) (resp *rag_svr.GetWeatherRsp, err error) {
+	resp = &rag_svr.GetWeatherRsp{
+		Code: 0,
+		Msg:  "success",
+	}
+
+	// 获取天气信息
+	weather, err := ai.GetWeather(ctx, req.Location)
+	if err != nil {
+		resp.Code = 500
+		resp.Msg = fmt.Sprintf("获取天气信息失败: %v", err)
+		return resp, nil
+	}
+
+	// 转换天气信息
+	resp.Weather = &rag_svr.WeatherInfo{
+		Location:    weather.Location,
+		Weather:     weather.Weather,
+		Temperature: float32(weather.Temperature),
+		Humidity:    float32(weather.Humidity),
+		WindSpeed:   float32(weather.WindSpeed),
+		WindDir:     weather.WindDir,
+		UpdateTime:  weather.UpdateTime.Format("2006-01-02 15:04:05"),
+	}
+	logger.Infof("获取天气信息成功: %v", resp.Weather)
+
+	return resp, nil
+}
+
+// GetHourlyWeather implements the RagServiceImpl interface.
+func (s *RagServiceImpl) GetHourlyWeather(ctx context.Context, req *rag_svr.GetHourlyWeatherReq) (resp *rag_svr.GetHourlyWeatherRsp, err error) {
+	resp = &rag_svr.GetHourlyWeatherRsp{
+		Code: 0,
+		Msg:  "success",
+	}
+
+	// 调用天气服务获取24小时预报
+	hourlyWeather, err := ai.GetHourlyWeather(ctx, req.Location)
+	if err != nil {
+		resp.Code = 1
+		resp.Msg = fmt.Sprintf("获取24小时天气预报失败: %v", err)
+		return resp, nil
+	}
+
+	// 构建响应
+	resp.Location = hourlyWeather.Location
+	resp.Hourly = make([]*rag_svr.HourlyWeather, len(hourlyWeather.Hourly))
+	for i, hour := range hourlyWeather.Hourly {
+		resp.Hourly[i] = &rag_svr.HourlyWeather{
+			Time:        hour.Time,
+			Weather:     hour.Weather,
+			Temperature: float32(hour.Temperature),
+			Humidity:    float32(hour.Humidity),
+			WindSpeed:   float32(hour.WindSpeed),
+			WindDir:     hour.WindDir,
+		}
+	}
+
+	return resp, nil
+}
+
+// GetDailyWeather implements the RagServiceImpl interface.
+func (s *RagServiceImpl) GetDailyWeather(ctx context.Context, req *rag_svr.GetDailyWeatherReq) (resp *rag_svr.GetDailyWeatherRsp, err error) {
+	resp = &rag_svr.GetDailyWeatherRsp{
+		Code: 0,
+		Msg:  "success",
+	}
+
+	// 调用天气服务获取15天预报
+	dailyWeather, err := ai.GetDailyWeather(ctx, req.Location)
+	if err != nil {
+		resp.Code = 1
+		resp.Msg = fmt.Sprintf("获取15天天气预报失败: %v", err)
+		return resp, nil
+	}
+
+	// 构建响应
+	resp.Location = dailyWeather.Location
+	resp.Daily = make([]*rag_svr.DailyWeather, len(dailyWeather.Daily))
+	for i, day := range dailyWeather.Daily {
+		resp.Daily[i] = &rag_svr.DailyWeather{
+			Date:      day.Date,
+			TextDay:   day.TextDay,
+			TextNight: day.TextNight,
+			HighTemp:  float32(day.HighTemp),
+			LowTemp:   float32(day.LowTemp),
+			Rainfall:  float32(day.Rainfall),
+			Precip:    float32(day.Precip),
+			WindDir:   day.WindDir,
+			WindSpeed: float32(day.WindSpeed),
+			WindScale: day.WindScale,
+			Humidity:  float32(day.Humidity),
+		}
+	}
+
+	return resp, nil
 }

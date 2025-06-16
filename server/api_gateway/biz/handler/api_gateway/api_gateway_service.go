@@ -968,3 +968,213 @@ func GetChatRecords(ctx context.Context, c *app.RequestContext) {
 		Records:  records,
 	})
 }
+
+// GetWeather .
+// @router /weather/get [GET]
+func GetWeather(ctx context.Context, c *app.RequestContext) {
+	var err error
+	var req api_gateway.GetWeatherReq
+	err = c.BindAndValidate(&req)
+	if err != nil {
+		c.String(consts.StatusBadRequest, err.Error())
+		return
+	}
+
+	// 从上下文中获取客户端
+	client, exists := c.Get("rag_svr_client")
+	if !exists {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": "客户端未初始化",
+		})
+		return
+	}
+
+	ragSvrClient := client.(ragservice.Client)
+
+	// 调用 rag_svr 的 GetWeather 方法
+	resp, err := ragSvrClient.GetWeather(ctx, &rag_svr.GetWeatherReq{
+		Location: req.Location,
+	})
+	if err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": fmt.Sprintf("调用服务失败: %v", err),
+		})
+		return
+	}
+
+	// 检查响应状态
+	if resp.Code != 0 {
+		c.JSON(consts.StatusOK, utils.H{
+			"code": resp.Code,
+			"msg":  resp.Msg,
+		})
+		return
+	}
+
+	// 检查天气信息是否为空
+	if resp.Weather == nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": "天气信息为空",
+		})
+		return
+	}
+
+	// 构建响应，处理可能的空值
+	weather := utils.H{
+		"location":    resp.Weather.Location,
+		"weather":     resp.Weather.Weather,
+		"temperature": resp.Weather.Temperature,
+		"humidity":    resp.Weather.Humidity,
+		"wind_speed":  resp.Weather.WindSpeed,
+		"wind_dir":    resp.Weather.WindDir,
+		"update_time": resp.Weather.UpdateTime,
+	}
+
+	// 检查并处理空值
+	if weather["humidity"] == 0 {
+		weather["humidity"] = nil
+	}
+	if weather["temperature"] == 0 {
+		weather["temperature"] = nil
+	}
+	if weather["wind_speed"] == 0 {
+		weather["wind_speed"] = nil
+	}
+
+	c.JSON(consts.StatusOK, utils.H{
+		"code":    resp.Code,
+		"msg":     resp.Msg,
+		"weather": weather,
+	})
+}
+
+// GetHourlyWeather .
+// @router /weather/hourly [GET]
+func GetHourlyWeather(ctx context.Context, c *app.RequestContext) {
+	var err error
+	var req api_gateway.GetHourlyWeatherReq
+	err = c.BindAndValidate(&req)
+	if err != nil {
+		c.String(consts.StatusBadRequest, err.Error())
+		return
+	}
+
+	// 从上下文中获取客户端
+	client, exists := c.Get("rag_svr_client")
+	if !exists {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": "客户端未初始化",
+		})
+		return
+	}
+
+	ragSvrClient := client.(ragservice.Client)
+
+	// 调用 rag_svr 的 GetHourlyWeather 方法
+	resp, err := ragSvrClient.GetHourlyWeather(ctx, &rag_svr.GetHourlyWeatherReq{
+		Location: req.Location,
+	})
+	if err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": fmt.Sprintf("调用服务失败: %v", err),
+		})
+		return
+	}
+
+	// 检查响应状态
+	if resp.Code != 0 {
+		c.JSON(consts.StatusOK, utils.H{
+			"code": resp.Code,
+			"msg":  resp.Msg,
+		})
+		return
+	}
+
+	// 构建响应
+	hourly := make([]map[string]interface{}, len(resp.Hourly))
+	for i, hour := range resp.Hourly {
+		hourly[i] = map[string]interface{}{
+			"time":        hour.Time,
+			"weather":     hour.Weather,
+			"temperature": hour.Temperature,
+			"humidity":    hour.Humidity,
+			"wind_speed":  hour.WindSpeed,
+			"wind_dir":    hour.WindDir,
+		}
+	}
+
+	c.JSON(consts.StatusOK, utils.H{
+		"code":     resp.Code,
+		"msg":      resp.Msg,
+		"location": resp.Location,
+		"hourly":   hourly,
+	})
+}
+
+// GetDailyWeather .
+// @router /weather/daily [GET]
+func GetDailyWeather(ctx context.Context, c *app.RequestContext) {
+	var err error
+	var req api_gateway.GetDailyWeatherReq
+	err = c.BindAndValidate(&req)
+	if err != nil {
+		c.String(consts.StatusBadRequest, err.Error())
+		return
+	}
+
+	// 从上下文中获取客户端
+	client, exists := c.Get("rag_svr_client")
+	if !exists {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": "客户端未初始化",
+		})
+		return
+	}
+
+	ragSvrClient := client.(ragservice.Client)
+
+	// 调用 rag_svr 的 GetDailyWeather 方法
+	resp, err := ragSvrClient.GetDailyWeather(ctx, &rag_svr.GetDailyWeatherReq{
+		Location: req.Location,
+	})
+	if err != nil {
+		c.JSON(consts.StatusInternalServerError, utils.H{
+			"error": fmt.Sprintf("调用服务失败: %v", err),
+		})
+		return
+	}
+
+	// 检查响应状态
+	if resp.Code != 0 {
+		c.JSON(consts.StatusOK, utils.H{
+			"code": resp.Code,
+			"msg":  resp.Msg,
+		})
+		return
+	}
+
+	// 构建响应
+	daily := make([]map[string]interface{}, len(resp.Daily))
+	for i, day := range resp.Daily {
+		daily[i] = map[string]interface{}{
+			"date":       day.Date,
+			"text_day":   day.TextDay,
+			"text_night": day.TextNight,
+			"high_temp":  day.HighTemp,
+			"low_temp":   day.LowTemp,
+			"rainfall":   day.Rainfall,
+			"precip":     day.Precip,
+			"wind_dir":   day.WindDir,
+			"wind_speed": day.WindSpeed,
+			"wind_scale": day.WindScale,
+			"humidity":   day.Humidity,
+		}
+	}
+
+	c.JSON(consts.StatusOK, utils.H{
+		"code":     resp.Code,
+		"msg":      resp.Msg,
+		"location": resp.Location,
+		"daily":    daily,
+	})
+}

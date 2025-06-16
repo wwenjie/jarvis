@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"server/framework/logger"
 	"server/framework/redis"
 )
 
@@ -200,6 +201,7 @@ func GetWeather(ctx context.Context, location string) (*WeatherData, error) {
 	// 从环境变量获取配置
 	apiKey := os.Getenv(weatherAPIKey)
 	if apiKey == "" {
+		logger.Errorf("环境变量 %s 未设置", weatherAPIKey)
 		return nil, fmt.Errorf("环境变量 %s 未设置", weatherAPIKey)
 	}
 
@@ -208,6 +210,7 @@ func GetWeather(ctx context.Context, location string) (*WeatherData, error) {
 		weatherAPIBaseURL, apiKey, location)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
+		logger.Errorf("创建请求失败: %v", err)
 		return nil, fmt.Errorf("创建请求失败: %v", err)
 	}
 
@@ -215,6 +218,7 @@ func GetWeather(ctx context.Context, location string) (*WeatherData, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
+		logger.Errorf("发送请求失败: %v", err)
 		return nil, fmt.Errorf("发送请求失败: %v", err)
 	}
 	defer resp.Body.Close()
@@ -222,8 +226,12 @@ func GetWeather(ctx context.Context, location string) (*WeatherData, error) {
 	// 读取响应
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		logger.Errorf("读取响应失败: %v", err)
 		return nil, fmt.Errorf("读取响应失败: %v", err)
 	}
+
+	// 打印原始响应
+	logger.Infof("天气API原始响应: %s", string(body))
 
 	// 解析响应
 	var apiResp struct {
@@ -242,32 +250,44 @@ func GetWeather(ctx context.Context, location string) (*WeatherData, error) {
 		} `json:"results"`
 	}
 	if err := json.Unmarshal(body, &apiResp); err != nil {
+		logger.Errorf("解析响应失败: %v", err)
 		return nil, fmt.Errorf("解析响应失败: %v", err)
 	}
 
 	// 检查响应
 	if len(apiResp.Results) == 0 {
+		logger.Errorf("未获取到天气数据")
 		return nil, fmt.Errorf("未获取到天气数据")
 	}
 
 	result := apiResp.Results[0]
+	logger.Infof("解析后的天气数据: %+v", result)
 
 	// 解析温度
 	temperature, err := strconv.ParseFloat(result.Now.Temperature, 64)
 	if err != nil {
+		logger.Errorf("解析温度失败: %v, 原始值: %s", err, result.Now.Temperature)
 		return nil, fmt.Errorf("解析温度失败: %v", err)
 	}
 
 	// 解析湿度
-	humidity, err := strconv.ParseFloat(result.Now.Humidity, 64)
-	if err != nil {
-		return nil, fmt.Errorf("解析湿度失败: %v", err)
+	var humidity float64
+	if result.Now.Humidity != "" {
+		humidity, err = strconv.ParseFloat(result.Now.Humidity, 64)
+		if err != nil {
+			logger.Errorf("解析湿度失败: %v, 原始值: %s", err, result.Now.Humidity)
+			return nil, fmt.Errorf("解析湿度失败: %v", err)
+		}
 	}
 
 	// 解析风速
-	windSpeed, err := strconv.ParseFloat(result.Now.WindSpeed, 64)
-	if err != nil {
-		return nil, fmt.Errorf("解析风速失败: %v", err)
+	var windSpeed float64
+	if result.Now.WindSpeed != "" {
+		windSpeed, err = strconv.ParseFloat(result.Now.WindSpeed, 64)
+		if err != nil {
+			logger.Errorf("解析风速失败: %v, 原始值: %s", err, result.Now.WindSpeed)
+			return nil, fmt.Errorf("解析风速失败: %v", err)
+		}
 	}
 
 	// 解析更新时间

@@ -141,6 +141,27 @@ var serviceMethods = map[string]kitex.MethodInfo{
 		false,
 		kitex.WithStreamingMode(kitex.StreamingUnary),
 	),
+	"GetWeather": kitex.NewMethodInfo(
+		getWeatherHandler,
+		newGetWeatherArgs,
+		newGetWeatherResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingUnary),
+	),
+	"GetHourlyWeather": kitex.NewMethodInfo(
+		getHourlyWeatherHandler,
+		newGetHourlyWeatherArgs,
+		newGetHourlyWeatherResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingUnary),
+	),
+	"GetDailyWeather": kitex.NewMethodInfo(
+		getDailyWeatherHandler,
+		newGetDailyWeatherArgs,
+		newGetDailyWeatherResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingUnary),
+	),
 }
 
 var (
@@ -2205,6 +2226,339 @@ func (p *GetChatRecordsResult) GetResult() interface{} {
 	return p.Success
 }
 
+func getWeatherHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	switch s := arg.(type) {
+	case *streaming.Args:
+		st := s.Stream
+		req := new(rag_svr.GetWeatherReq)
+		if err := st.RecvMsg(req); err != nil {
+			return err
+		}
+		resp, err := handler.(rag_svr.RagService).GetWeather(ctx, req)
+		if err != nil {
+			return err
+		}
+		return st.SendMsg(resp)
+	case *GetWeatherArgs:
+		success, err := handler.(rag_svr.RagService).GetWeather(ctx, s.Req)
+		if err != nil {
+			return err
+		}
+		realResult := result.(*GetWeatherResult)
+		realResult.Success = success
+		return nil
+	default:
+		return errInvalidMessageType
+	}
+}
+func newGetWeatherArgs() interface{} {
+	return &GetWeatherArgs{}
+}
+
+func newGetWeatherResult() interface{} {
+	return &GetWeatherResult{}
+}
+
+type GetWeatherArgs struct {
+	Req *rag_svr.GetWeatherReq
+}
+
+func (p *GetWeatherArgs) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetReq() {
+		return out, nil
+	}
+	return proto.Marshal(p.Req)
+}
+
+func (p *GetWeatherArgs) Unmarshal(in []byte) error {
+	msg := new(rag_svr.GetWeatherReq)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Req = msg
+	return nil
+}
+
+var GetWeatherArgs_Req_DEFAULT *rag_svr.GetWeatherReq
+
+func (p *GetWeatherArgs) GetReq() *rag_svr.GetWeatherReq {
+	if !p.IsSetReq() {
+		return GetWeatherArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+
+func (p *GetWeatherArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *GetWeatherArgs) GetFirstArgument() interface{} {
+	return p.Req
+}
+
+type GetWeatherResult struct {
+	Success *rag_svr.GetWeatherRsp
+}
+
+var GetWeatherResult_Success_DEFAULT *rag_svr.GetWeatherRsp
+
+func (p *GetWeatherResult) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetSuccess() {
+		return out, nil
+	}
+	return proto.Marshal(p.Success)
+}
+
+func (p *GetWeatherResult) Unmarshal(in []byte) error {
+	msg := new(rag_svr.GetWeatherRsp)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Success = msg
+	return nil
+}
+
+func (p *GetWeatherResult) GetSuccess() *rag_svr.GetWeatherRsp {
+	if !p.IsSetSuccess() {
+		return GetWeatherResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+func (p *GetWeatherResult) SetSuccess(x interface{}) {
+	p.Success = x.(*rag_svr.GetWeatherRsp)
+}
+
+func (p *GetWeatherResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *GetWeatherResult) GetResult() interface{} {
+	return p.Success
+}
+
+func getHourlyWeatherHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	switch s := arg.(type) {
+	case *streaming.Args:
+		st := s.Stream
+		req := new(rag_svr.GetHourlyWeatherReq)
+		if err := st.RecvMsg(req); err != nil {
+			return err
+		}
+		resp, err := handler.(rag_svr.RagService).GetHourlyWeather(ctx, req)
+		if err != nil {
+			return err
+		}
+		return st.SendMsg(resp)
+	case *GetHourlyWeatherArgs:
+		success, err := handler.(rag_svr.RagService).GetHourlyWeather(ctx, s.Req)
+		if err != nil {
+			return err
+		}
+		realResult := result.(*GetHourlyWeatherResult)
+		realResult.Success = success
+		return nil
+	default:
+		return errInvalidMessageType
+	}
+}
+func newGetHourlyWeatherArgs() interface{} {
+	return &GetHourlyWeatherArgs{}
+}
+
+func newGetHourlyWeatherResult() interface{} {
+	return &GetHourlyWeatherResult{}
+}
+
+type GetHourlyWeatherArgs struct {
+	Req *rag_svr.GetHourlyWeatherReq
+}
+
+func (p *GetHourlyWeatherArgs) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetReq() {
+		return out, nil
+	}
+	return proto.Marshal(p.Req)
+}
+
+func (p *GetHourlyWeatherArgs) Unmarshal(in []byte) error {
+	msg := new(rag_svr.GetHourlyWeatherReq)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Req = msg
+	return nil
+}
+
+var GetHourlyWeatherArgs_Req_DEFAULT *rag_svr.GetHourlyWeatherReq
+
+func (p *GetHourlyWeatherArgs) GetReq() *rag_svr.GetHourlyWeatherReq {
+	if !p.IsSetReq() {
+		return GetHourlyWeatherArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+
+func (p *GetHourlyWeatherArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *GetHourlyWeatherArgs) GetFirstArgument() interface{} {
+	return p.Req
+}
+
+type GetHourlyWeatherResult struct {
+	Success *rag_svr.GetHourlyWeatherRsp
+}
+
+var GetHourlyWeatherResult_Success_DEFAULT *rag_svr.GetHourlyWeatherRsp
+
+func (p *GetHourlyWeatherResult) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetSuccess() {
+		return out, nil
+	}
+	return proto.Marshal(p.Success)
+}
+
+func (p *GetHourlyWeatherResult) Unmarshal(in []byte) error {
+	msg := new(rag_svr.GetHourlyWeatherRsp)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Success = msg
+	return nil
+}
+
+func (p *GetHourlyWeatherResult) GetSuccess() *rag_svr.GetHourlyWeatherRsp {
+	if !p.IsSetSuccess() {
+		return GetHourlyWeatherResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+func (p *GetHourlyWeatherResult) SetSuccess(x interface{}) {
+	p.Success = x.(*rag_svr.GetHourlyWeatherRsp)
+}
+
+func (p *GetHourlyWeatherResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *GetHourlyWeatherResult) GetResult() interface{} {
+	return p.Success
+}
+
+func getDailyWeatherHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	switch s := arg.(type) {
+	case *streaming.Args:
+		st := s.Stream
+		req := new(rag_svr.GetDailyWeatherReq)
+		if err := st.RecvMsg(req); err != nil {
+			return err
+		}
+		resp, err := handler.(rag_svr.RagService).GetDailyWeather(ctx, req)
+		if err != nil {
+			return err
+		}
+		return st.SendMsg(resp)
+	case *GetDailyWeatherArgs:
+		success, err := handler.(rag_svr.RagService).GetDailyWeather(ctx, s.Req)
+		if err != nil {
+			return err
+		}
+		realResult := result.(*GetDailyWeatherResult)
+		realResult.Success = success
+		return nil
+	default:
+		return errInvalidMessageType
+	}
+}
+func newGetDailyWeatherArgs() interface{} {
+	return &GetDailyWeatherArgs{}
+}
+
+func newGetDailyWeatherResult() interface{} {
+	return &GetDailyWeatherResult{}
+}
+
+type GetDailyWeatherArgs struct {
+	Req *rag_svr.GetDailyWeatherReq
+}
+
+func (p *GetDailyWeatherArgs) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetReq() {
+		return out, nil
+	}
+	return proto.Marshal(p.Req)
+}
+
+func (p *GetDailyWeatherArgs) Unmarshal(in []byte) error {
+	msg := new(rag_svr.GetDailyWeatherReq)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Req = msg
+	return nil
+}
+
+var GetDailyWeatherArgs_Req_DEFAULT *rag_svr.GetDailyWeatherReq
+
+func (p *GetDailyWeatherArgs) GetReq() *rag_svr.GetDailyWeatherReq {
+	if !p.IsSetReq() {
+		return GetDailyWeatherArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+
+func (p *GetDailyWeatherArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *GetDailyWeatherArgs) GetFirstArgument() interface{} {
+	return p.Req
+}
+
+type GetDailyWeatherResult struct {
+	Success *rag_svr.GetDailyWeatherRsp
+}
+
+var GetDailyWeatherResult_Success_DEFAULT *rag_svr.GetDailyWeatherRsp
+
+func (p *GetDailyWeatherResult) Marshal(out []byte) ([]byte, error) {
+	if !p.IsSetSuccess() {
+		return out, nil
+	}
+	return proto.Marshal(p.Success)
+}
+
+func (p *GetDailyWeatherResult) Unmarshal(in []byte) error {
+	msg := new(rag_svr.GetDailyWeatherRsp)
+	if err := proto.Unmarshal(in, msg); err != nil {
+		return err
+	}
+	p.Success = msg
+	return nil
+}
+
+func (p *GetDailyWeatherResult) GetSuccess() *rag_svr.GetDailyWeatherRsp {
+	if !p.IsSetSuccess() {
+		return GetDailyWeatherResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+func (p *GetDailyWeatherResult) SetSuccess(x interface{}) {
+	p.Success = x.(*rag_svr.GetDailyWeatherRsp)
+}
+
+func (p *GetDailyWeatherResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *GetDailyWeatherResult) GetResult() interface{} {
+	return p.Success
+}
+
 type kClient struct {
 	c client.Client
 }
@@ -2390,6 +2744,36 @@ func (p *kClient) GetChatRecords(ctx context.Context, Req *rag_svr.GetChatRecord
 	_args.Req = Req
 	var _result GetChatRecordsResult
 	if err = p.c.Call(ctx, "GetChatRecords", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) GetWeather(ctx context.Context, Req *rag_svr.GetWeatherReq) (r *rag_svr.GetWeatherRsp, err error) {
+	var _args GetWeatherArgs
+	_args.Req = Req
+	var _result GetWeatherResult
+	if err = p.c.Call(ctx, "GetWeather", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) GetHourlyWeather(ctx context.Context, Req *rag_svr.GetHourlyWeatherReq) (r *rag_svr.GetHourlyWeatherRsp, err error) {
+	var _args GetHourlyWeatherArgs
+	_args.Req = Req
+	var _result GetHourlyWeatherResult
+	if err = p.c.Call(ctx, "GetHourlyWeather", &_args, &_result); err != nil {
+		return
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) GetDailyWeather(ctx context.Context, Req *rag_svr.GetDailyWeatherReq) (r *rag_svr.GetDailyWeatherRsp, err error) {
+	var _args GetDailyWeatherArgs
+	_args.Req = Req
+	var _result GetDailyWeatherResult
+	if err = p.c.Call(ctx, "GetDailyWeather", &_args, &_result); err != nil {
 		return
 	}
 	return _result.GetSuccess(), nil

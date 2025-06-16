@@ -19,8 +19,8 @@ var milvusClient client.Client
 
 // 集合名称常量
 const (
-	MemoryCollectionName   = "chat_memory" // 记忆集合
-	DocumentCollectionName = "document"    // 文档集合
+	MemoryCollectionName   = "chat_memory"    // 记忆集合
+	DocumentCollectionName = "document_chunk" // 文档块集合
 )
 
 // MilvusStats 用于记录 Milvus 操作统计信息
@@ -253,4 +253,9 @@ func BatchDeleteVectors(ctx context.Context, collectionName string, ids []int64)
 	}
 
 	return nil
+}
+
+// GetClient 获取 Milvus 客户端
+func GetClient() client.Client {
+	return milvusClient
 }

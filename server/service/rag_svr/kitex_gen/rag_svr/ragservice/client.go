@@ -29,6 +29,9 @@ type Client interface {
 	DeleteMemory(ctx context.Context, Req *rag_svr.DeleteMemoryReq, callOptions ...callopt.Option) (r *rag_svr.DeleteMemoryRsp, err error)
 	AddChatRecord(ctx context.Context, Req *rag_svr.AddChatRecordReq, callOptions ...callopt.Option) (r *rag_svr.AddChatRecordRsp, err error)
 	GetChatRecords(ctx context.Context, Req *rag_svr.GetChatRecordsReq, callOptions ...callopt.Option) (r *rag_svr.GetChatRecordsRsp, err error)
+	GetWeather(ctx context.Context, Req *rag_svr.GetWeatherReq, callOptions ...callopt.Option) (r *rag_svr.GetWeatherRsp, err error)
+	GetHourlyWeather(ctx context.Context, Req *rag_svr.GetHourlyWeatherReq, callOptions ...callopt.Option) (r *rag_svr.GetHourlyWeatherRsp, err error)
+	GetDailyWeather(ctx context.Context, Req *rag_svr.GetDailyWeatherReq, callOptions ...callopt.Option) (r *rag_svr.GetDailyWeatherRsp, err error)
 }
 
 // NewClient creates a client for the service defined in IDL.
@@ -148,4 +151,19 @@ func (p *kRagServiceClient) AddChatRecord(ctx context.Context, Req *rag_svr.AddC
 func (p *kRagServiceClient) GetChatRecords(ctx context.Context, Req *rag_svr.GetChatRecordsReq, callOptions ...callopt.Option) (r *rag_svr.GetChatRecordsRsp, err error) {
 	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
 	return p.kClient.GetChatRecords(ctx, Req)
+}
+
+func (p *kRagServiceClient) GetWeather(ctx context.Context, Req *rag_svr.GetWeatherReq, callOptions ...callopt.Option) (r *rag_svr.GetWeatherRsp, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.GetWeather(ctx, Req)
+}
+
+func (p *kRagServiceClient) GetHourlyWeather(ctx context.Context, Req *rag_svr.GetHourlyWeatherReq, callOptions ...callopt.Option) (r *rag_svr.GetHourlyWeatherRsp, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.GetHourlyWeather(ctx, Req)
+}
+
+func (p *kRagServiceClient) GetDailyWeather(ctx context.Context, Req *rag_svr.GetDailyWeatherReq, callOptions ...callopt.Option) (r *rag_svr.GetDailyWeatherRsp, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.GetDailyWeather(ctx, Req)
 }

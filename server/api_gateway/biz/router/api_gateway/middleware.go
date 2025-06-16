@@ -153,3 +153,23 @@ func _getchatrecordsMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _weatherMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getweatherMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getdailyweatherMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _gethourlyweatherMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

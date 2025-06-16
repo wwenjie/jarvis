@@ -53,4 +53,10 @@ func Register(r *server.Hertz) {
 		_user := root.Group("/user", _userMw()...)
 		_user.POST("/create", append(_createuserMw(), api_gateway.CreateUser)...)
 	}
+	{
+		_weather := root.Group("/weather", _weatherMw()...)
+		_weather.GET("/daily", append(_getdailyweatherMw(), api_gateway.GetDailyWeather)...)
+		_weather.GET("/get", append(_getweatherMw(), api_gateway.GetWeather)...)
+		_weather.GET("/hourly", append(_gethourlyweatherMw(), api_gateway.GetHourlyWeather)...)
+	}
 }
