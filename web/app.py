@@ -56,7 +56,7 @@ FUNCTIONS = [
                 },
                 "content": {
                     "type": "string",
-                    "description": "记忆内容"
+                    "description": "记忆内容，如果涉及日期，请使用实际日期，不要用相对日期"
                 },
                 "memory_type": {
                     "type": "string",
@@ -73,6 +73,15 @@ FUNCTIONS = [
                 }
             },
             "required": ["user_id", "content", "memory_type", "importance"]
+        },
+        "returns": {
+            "type": "object",
+            "properties": {
+                "memory_id": {
+                    "type": "integer",
+                    "description": "新创建的记忆ID"
+                }
+            }
         }
     },
     {
@@ -87,6 +96,15 @@ FUNCTIONS = [
                 }
             },
             "required": ["memory_id"]
+        },
+        "returns": {
+            "type": "object",
+            "properties": {
+                "memory": {
+                    "type": "object",
+                    "description": "记忆信息，包含memory_id、content、memory_type等字段"
+                }
+            }
         }
     },
     {
@@ -105,6 +123,44 @@ FUNCTIONS = [
                 }
             },
             "required": ["query"]
+        },
+        "returns": {
+            "type": "object",
+            "properties": {
+                "memories": {
+                    "type": "array",
+                    "description": "记忆列表，每条记忆包含memory_id、content、memory_type等字段",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "memory_id": {
+                                "type": "integer",
+                                "description": "记忆ID，用于后续删除或更新操作"
+                            },
+                            "content": {
+                                "type": "string",
+                                "description": "记忆内容"
+                            },
+                            "memory_type": {
+                                "type": "string",
+                                "description": "记忆类型"
+                            },
+                            "importance": {
+                                "type": "number",
+                                "description": "重要性"
+                            },
+                            "create_time": {
+                                "type": "string",
+                                "description": "创建时间"
+                            },
+                            "expire_time": {
+                                "type": "string",
+                                "description": "过期时间"
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     {
@@ -123,6 +179,228 @@ FUNCTIONS = [
                 }
             },
             "required": ["memory_id", "reason"]
+        },
+        "returns": {
+            "type": "object",
+            "properties": {
+                "memory_id": {
+                    "type": "integer",
+                    "description": "被删除的记忆ID"
+                }
+            }
+        }
+    },
+    {
+        "name": "search_document",
+        "description": "搜索知识库中的文档",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "搜索查询"
+                },
+                "top_k": {
+                    "type": "integer",
+                    "description": "返回结果数量"
+                }
+            },
+            "required": ["query"]
+        },
+        "returns": {
+            "type": "object",
+            "properties": {
+                "documents": {
+                    "type": "array",
+                    "description": "文档列表，每个文档包含title、content等字段",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "文档标题"
+                            },
+                            "content": {
+                                "type": "string",
+                                "description": "文档中相关的内容"
+                            },
+                            "score": {
+                                "type": "number",
+                                "description": "相关度分数"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    {
+        "name": "get_weather",
+        "description": "获取指定位置的实时天气信息",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "location": {
+                    "type": "string",
+                    "description": "位置名称，如：北京、上海、广州等"
+                }
+            },
+            "required": ["location"]
+        },
+        "returns": {
+            "type": "object",
+            "properties": {
+                "weather": {
+                    "type": "object",
+                    "description": "天气信息，包含温度、天气状况等",
+                    "properties": {
+                        "temperature": {
+                            "type": "number",
+                            "description": "温度（摄氏度）"
+                        },
+                        "condition": {
+                            "type": "string",
+                            "description": "天气状况"
+                        },
+                        "humidity": {
+                            "type": "number",
+                            "description": "湿度（百分比）"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    {
+        "name": "get_hourly_weather",
+        "description": "获取指定位置的24小时天气预报",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "location": {
+                    "type": "string",
+                    "description": "位置名称，如：北京、上海、广州等"
+                }
+            },
+            "required": ["location"]
+        },
+        "returns": {
+            "type": "object",
+            "properties": {
+                "location": {
+                    "type": "string",
+                    "description": "位置名称"
+                },
+                "hourly": {
+                    "type": "array",
+                    "description": "24小时天气预报",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "time": {
+                                "type": "string",
+                                "description": "时间"
+                            },
+                            "weather": {
+                                "type": "string",
+                                "description": "天气状况"
+                            },
+                            "temperature": {
+                                "type": "number",
+                                "description": "温度（摄氏度）"
+                            },
+                            "humidity": {
+                                "type": "number",
+                                "description": "湿度（百分比）"
+                            },
+                            "wind_speed": {
+                                "type": "number",
+                                "description": "风速（米/秒）"
+                            },
+                            "wind_dir": {
+                                "type": "string",
+                                "description": "风向"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    {
+        "name": "get_daily_weather",
+        "description": "获取指定位置的15天天气预报",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "location": {
+                    "type": "string",
+                    "description": "位置名称，如：北京、上海、广州等"
+                }
+            },
+            "required": ["location"]
+        },
+        "returns": {
+            "type": "object",
+            "properties": {
+                "location": {
+                    "type": "string",
+                    "description": "位置名称"
+                },
+                "daily": {
+                    "type": "array",
+                    "description": "15天天气预报",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "date": {
+                                "type": "string",
+                                "description": "日期"
+                            },
+                            "text_day": {
+                                "type": "string",
+                                "description": "白天天气"
+                            },
+                            "text_night": {
+                                "type": "string",
+                                "description": "夜间天气"
+                            },
+                            "high_temp": {
+                                "type": "number",
+                                "description": "最高温度（摄氏度）"
+                            },
+                            "low_temp": {
+                                "type": "number",
+                                "description": "最低温度（摄氏度）"
+                            },
+                            "rainfall": {
+                                "type": "number",
+                                "description": "降雨量（毫米）"
+                            },
+                            "precip": {
+                                "type": "number",
+                                "description": "降水概率（百分比）"
+                            },
+                            "wind_dir": {
+                                "type": "string",
+                                "description": "风向"
+                            },
+                            "wind_speed": {
+                                "type": "number",
+                                "description": "风速（米/秒）"
+                            },
+                            "wind_scale": {
+                                "type": "string",
+                                "description": "风力等级"
+                            },
+                            "humidity": {
+                                "type": "number",
+                                "description": "湿度（百分比）"
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 ]
@@ -133,21 +411,17 @@ SYSTEM_PROMPT = """你是一个带长远记忆的 AI 助手，名字叫 Jarvis�
 你的主要特点：
 1. 长期记忆能力
    - 能记住用户的重要信息
-   - 能记住用户的偏好设置
    - 能记住重要的对话历史
-   - 能记住用户的任务和提醒
+   - 能记住用户的任务和提醒，并及时清理过期的提醒
 
 2. 个性化交互
    - 根据用户习惯调整回复风格
    - 记住用户的常用表达方式
-   - 适应用户的交流节奏
    - 保持对话的连贯性
 
 3. 智能学习
    - 从对话中学习用户习惯
-   - 优化回复策略
    - 记住有效的解决方案
-   - 避免重复的错误
 
 4. 任务管理
    - 记住并提醒用户的任务
@@ -166,12 +440,6 @@ SYSTEM_PROMPT = """你是一个带长远记忆的 AI 助手，名字叫 Jarvis�
    - 积累问题解决方案
    - 建立知识关联网络
    - 持续优化知识体系
-
-7. 隐私保护
-   - 保护用户的隐私信息
-   - 遵守数据安全规范
-   - 谨慎处理敏感内容
-   - 及时清理过期信息
 
 你的行为准则：
 1. 保持对话的连贯性和上下文理解
@@ -206,6 +474,11 @@ USER_PROMPT_TEMPLATE = """用户信息：
 - 用户ID：{user_id}
 - 会话ID：{session_id}
 - 当前时间：{current_time}
+- 当前日期：{current_date}
+- 当前月份：{current_month}
+- 当前年份：{current_year}
+- 明天是：{tomorrow_date}
+- 后天是：{day_after_tomorrow_date}
 
 历史记忆：
 {memory}
@@ -382,7 +655,70 @@ async def process_function_call(func_call: dict, api_gateway_base_url: str) -> d
         dict: 函数调用结果
     """
     try:
-        if func_call["name"] == "search_memories":
+        if func_call["name"] == "get_weather":
+            async with httpx.AsyncClient(base_url=api_gateway_base_url) as client:
+                response = await client.get(
+                    "/weather/get",
+                    params={
+                        "location": func_call["arguments"]["location"]
+                    }
+                )
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get("code", 0) == 0:
+                        weather = result.get("weather", {})
+                        return {
+                            "name": "get_weather",
+                            "result": "success",
+                            "weather": weather
+                        }
+                    else:
+                        return {
+                            "name": "get_weather",
+                            "result": "error",
+                            "error": result.get("msg", "未知错误")
+                        }
+                else:
+                    return {
+                        "name": "get_weather",
+                        "result": "error",
+                        "error": f"请求失败: {response.status_code}"
+                    }
+        
+        elif func_call["name"] == "search_document":
+            async with httpx.AsyncClient(base_url=api_gateway_base_url) as client:
+                response = await client.get(
+                    "/document/search",
+                    params={
+                        "user_id": 1,  # 固定用户ID
+                        "query": func_call["arguments"]["query"],
+                        "top_k": func_call["arguments"].get("top_k", 5)
+                    }
+                )
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get("code", 0) == 0:
+                        documents = result.get("results", [])
+                        return {
+                            "name": "search_document",
+                            "result": "success",
+                            "documents": documents,
+                            "is_empty": len(documents) == 0
+                        }
+                    else:
+                        return {
+                            "name": "search_document",
+                            "result": "error",
+                            "error": result.get("msg", "未知错误")
+                        }
+                else:
+                    return {
+                        "name": "search_document",
+                        "result": "error",
+                        "error": f"请求失败: {response.status_code}"
+                    }
+        
+        elif func_call["name"] == "search_memories":
             async with httpx.AsyncClient(base_url=api_gateway_base_url) as client:
                 response = await client.get(
                     "/memory/search",
@@ -510,6 +846,66 @@ async def process_function_call(func_call: dict, api_gateway_base_url: str) -> d
                         "error": f"请求失败: {response.status_code}"
                     }
         
+        elif func_call["name"] == "get_hourly_weather":
+            async with httpx.AsyncClient(base_url=api_gateway_base_url) as client:
+                response = await client.get(
+                    "/weather/hourly",
+                    params={
+                        "location": func_call["arguments"]["location"]
+                    }
+                )
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get("code", 0) == 0:
+                        return {
+                            "name": "get_hourly_weather",
+                            "result": "success",
+                            "location": result.get("location"),
+                            "hourly": result.get("hourly", [])
+                        }
+                    else:
+                        return {
+                            "name": "get_hourly_weather",
+                            "result": "error",
+                            "error": result.get("msg", "未知错误")
+                        }
+                else:
+                    return {
+                        "name": "get_hourly_weather",
+                        "result": "error",
+                        "error": f"请求失败: {response.status_code}"
+                    }
+        
+        elif func_call["name"] == "get_daily_weather":
+            async with httpx.AsyncClient(base_url=api_gateway_base_url) as client:
+                response = await client.get(
+                    "/weather/daily",
+                    params={
+                        "location": func_call["arguments"]["location"]
+                    }
+                )
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get("code", 0) == 0:
+                        return {
+                            "name": "get_daily_weather",
+                            "result": "success",
+                            "location": result.get("location"),
+                            "daily": result.get("daily", [])
+                        }
+                    else:
+                        return {
+                            "name": "get_daily_weather",
+                            "result": "error",
+                            "error": result.get("msg", "未知错误")
+                        }
+                else:
+                    return {
+                        "name": "get_daily_weather",
+                        "result": "error",
+                        "error": f"请求失败: {response.status_code}"
+                    }
+        
         return {
             "name": func_call["name"],
             "result": "error",
@@ -544,60 +940,71 @@ async def process_stream_request(query: str, session_id: str = None):
             session_id = str(result["session_id"])
             print(f"新会话创建成功: session_id={session_id}")
 
-    # 检索相关文档
-    print("开始检索相关文档...")
-    try:
-        async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL, timeout=30.0) as client:
-            print(f"请求 API 网关: {API_GATEWAY_BASE_URL}/document/search")
-            print(f"请求参数: user_id=1, query={query}, top_k=3")
+    # # 检索相关文档
+    # print("开始检索相关文档...")
+    # try:
+    #     async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL, timeout=30.0) as client:
+    #         print(f"请求 API 网关: {API_GATEWAY_BASE_URL}/document/search")
+    #         print(f"请求参数: user_id=1, query={query}, top_k=3")
             
-            response = await client.get(
-                "/document/search",
-                params={
-                    "user_id": 1,  # 固定用户ID
-                    "query": query,
-                    "top_k": 3
-                }
-            )
+    #         response = await client.get(
+    #             "/document/search",
+    #             params={
+    #                 "user_id": 1,  # 固定用户ID
+    #                 "query": query,
+    #                 "top_k": 3
+    #             }
+    #         )
             
-            print(f"API 网关响应状态码: {response.status_code}")
-            print(f"API 网关响应内容: {response.text}")
+    #         print(f"API 网关响应状态码: {response.status_code}")
+    #         print(f"API 网关响应内容: {response.text}")
             
-            if response.status_code != 200:
-                raise HTTPException(status_code=500, detail=f"搜索文档失败: HTTP {response.status_code}")
+    #         if response.status_code != 200:
+    #             raise HTTPException(status_code=500, detail=f"搜索文档失败: HTTP {response.status_code}")
                 
-            result = response.json()
-            if result.get("code", 0) != 0:
-                raise HTTPException(status_code=500, detail=f"搜索文档失败: {result.get('msg', '未知错误')}")
+    #         result = response.json()
+    #         if result.get("code", 0) != 0:
+    #             raise HTTPException(status_code=500, detail=f"搜索文档失败: {result.get('msg', '未知错误')}")
                 
-            documents = result.get("results", [])
-            print(f"检索到 {len(documents)} 个相关文档")
-    except httpx.RequestError as e:
-        print(f"请求 API 网关失败: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"请求 API 网关失败: {str(e)}")
-    except Exception as e:
-        print(f"搜索文档时发生错误: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"搜索文档时发生错误: {str(e)}")
+    #         documents = result.get("results", [])
+    #         print(f"检索到 {len(documents)} 个相关文档")
+    # except httpx.RequestError as e:
+    #     print(f"请求 API 网关失败: {str(e)}")
+    #     raise HTTPException(status_code=500, detail=f"请求 API 网关失败: {str(e)}")
+    # except Exception as e:
+    #     print(f"搜索文档时发生错误: {str(e)}")
+    #     raise HTTPException(status_code=500, detail=f"搜索文档时发生错误: {str(e)}")
 
     # 构建上下文
     context = {
         "documents": []
     }
-    for doc in documents:
-        context["documents"].append({
-            "title": doc['title'],
-            "content": doc['content'],
-            "score": doc.get('score', 0)
-        })
+    # for doc in documents:
+    #     context["documents"].append({
+    #         "title": doc['title'],
+    #         "content": doc['content'],
+    #         "score": doc.get('score', 0)
+    #     })
 
     # 获取当前时间
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    current_month = datetime.now().strftime("%Y-%m")
+    current_year = datetime.now().strftime("%Y")
+    from datetime import timedelta
+    tomorrow_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    day_after_tomorrow_date = (datetime.now() + timedelta(days=2)).strftime("%Y-%m-%d")
     
     # 构建用户提示词
     user_prompt = USER_PROMPT_TEMPLATE.format(
         user_id=1,
         session_id=session_id,
         current_time=current_time,
+        current_date=current_date,
+        current_month=current_month,
+        current_year=current_year,
+        tomorrow_date=tomorrow_date,
+        day_after_tomorrow_date=day_after_tomorrow_date,
         memory=json.dumps(context, ensure_ascii=False),
         query=query
     )
