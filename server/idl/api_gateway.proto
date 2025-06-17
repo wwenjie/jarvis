@@ -53,7 +53,7 @@ message CreateSessionRsp {
     uint32 code = 1;
     string msg = 2;
     uint64 session_id = 3;
-    string create_time = 4;
+    uint64 create_time = 4;
 }
 
 message GetSessionReq {
@@ -136,8 +136,8 @@ message Document {
     string title = 2;
     string content = 3;
     string metadata = 4;
-    string create_time = 5;
-    string update_time = 6;
+    uint64 create_time = 5;
+    uint64 update_time = 6;
 }
 
 message SearchDocumentReq {
@@ -217,9 +217,9 @@ message Memory {
     string memory_type = 4;
     double importance = 5;
     string metadata = 6;
-    string create_time = 7;
-    string update_time = 8;
-    string expire_time = 9;
+    uint64 create_time = 7;
+    uint64 update_time = 8;
+    uint64 expire_time = 9;
     int32 access_count = 10;
 }
 
@@ -243,7 +243,7 @@ message ChatRecord {
     string response = 5;      // AI响应
     string message_type = 6;  // 消息类型
     string status = 7;        // 状态
-    string create_time = 8;   // 创建时间
+    uint64 create_time = 8;   // 创建时间
 }
 
 message AddChatRecordReq {
@@ -366,7 +366,7 @@ service ApiGatewayService {
         option (api.post) = "/session/create";
     }
     rpc GetSession(GetSessionReq) returns (GetSessionRsp) {
-        option (api.get) = "/session/{session_id}";
+        option (api.get) = "/session/get";
     }
     rpc GetSessionList(GetSessionListReq) returns (GetSessionListRsp) {
         option (api.get) = "/session/list";
@@ -380,7 +380,7 @@ service ApiGatewayService {
         option (api.post) = "/document/add";
     }
     rpc DeleteDocument(DeleteDocumentReq) returns (DeleteDocumentRsp) {
-        option (api.delete) = "/document/{doc_id}";
+        option (api.delete) = "/document/delete";
     }
     rpc SearchDocument(SearchDocumentReq) returns (SearchDocumentRsp) {
         option (api.get) = "/document/search";
@@ -405,7 +405,7 @@ service ApiGatewayService {
         option (api.get) = "/memory/search";
     }
     rpc DeleteMemory(DeleteMemoryReq) returns (DeleteMemoryRsp) {
-        option (api.delete) = "/memory/{memory_id}";
+        option (api.delete) = "/memory/delete";
     }
     
     // 聊天记录管理
@@ -414,7 +414,7 @@ service ApiGatewayService {
     }
     
     rpc GetChatRecords(GetChatRecordsReq) returns (GetChatRecordsRsp) {
-        option (api.get) = "/chat/records/{session_id}";
+        option (api.get) = "/chat/records/get";
     }
     
     // 天气服务

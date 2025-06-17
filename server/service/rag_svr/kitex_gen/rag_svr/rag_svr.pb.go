@@ -141,8 +141,8 @@ type UserInfo struct {
 	UserId     uint64 `protobuf:"varint,1,opt,name=user_id" json:"user_id,omitempty"`
 	UserName   string `protobuf:"bytes,2,opt,name=user_name" json:"user_name,omitempty"`
 	Email      string `protobuf:"bytes,3,opt,name=email" json:"email,omitempty"`
-	CreateTime string `protobuf:"bytes,4,opt,name=create_time" json:"create_time,omitempty"`
-	UpdateTime string `protobuf:"bytes,5,opt,name=update_time" json:"update_time,omitempty"`
+	CreateTime uint64 `protobuf:"varint,4,opt,name=create_time" json:"create_time,omitempty"`
+	UpdateTime uint64 `protobuf:"varint,5,opt,name=update_time" json:"update_time,omitempty"`
 }
 
 func (x *UserInfo) Reset() { *x = UserInfo{} }
@@ -172,18 +172,18 @@ func (x *UserInfo) GetEmail() string {
 	return ""
 }
 
-func (x *UserInfo) GetCreateTime() string {
+func (x *UserInfo) GetCreateTime() uint64 {
 	if x != nil {
 		return x.CreateTime
 	}
-	return ""
+	return 0
 }
 
-func (x *UserInfo) GetUpdateTime() string {
+func (x *UserInfo) GetUpdateTime() uint64 {
 	if x != nil {
 		return x.UpdateTime
 	}
-	return ""
+	return 0
 }
 
 type CreateUserReq struct {
@@ -267,8 +267,8 @@ type SessionInfo struct {
 	Title       string            `protobuf:"bytes,3,opt,name=title" json:"title,omitempty"`     // 会话标题
 	Summary     string            `protobuf:"bytes,4,opt,name=summary" json:"summary,omitempty"` // 会话摘要
 	Status      string            `protobuf:"bytes,5,opt,name=status" json:"status,omitempty"`   // 会话状态
-	CreateTime  string            `protobuf:"bytes,6,opt,name=create_time" json:"create_time,omitempty"`
-	UpdateTime  string            `protobuf:"bytes,7,opt,name=update_time" json:"update_time,omitempty"`
+	CreateTime  uint64            `protobuf:"varint,6,opt,name=create_time" json:"create_time,omitempty"`
+	UpdateTime  uint64            `protobuf:"varint,7,opt,name=update_time" json:"update_time,omitempty"`
 	UserState   map[string]string `protobuf:"bytes,8,rep,name=user_state" json:"user_state,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`     // 用户状态
 	SystemState map[string]string `protobuf:"bytes,9,rep,name=system_state" json:"system_state,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // 系统状态
 	ChatRecords []*ChatRecord     `protobuf:"bytes,10,rep,name=chat_records" json:"chat_records,omitempty"`                                                                          // 对话记录
@@ -316,18 +316,18 @@ func (x *SessionInfo) GetStatus() string {
 	return ""
 }
 
-func (x *SessionInfo) GetCreateTime() string {
+func (x *SessionInfo) GetCreateTime() uint64 {
 	if x != nil {
 		return x.CreateTime
 	}
-	return ""
+	return 0
 }
 
-func (x *SessionInfo) GetUpdateTime() string {
+func (x *SessionInfo) GetUpdateTime() uint64 {
 	if x != nil {
 		return x.UpdateTime
 	}
-	return ""
+	return 0
 }
 
 func (x *SessionInfo) GetUserState() map[string]string {
@@ -365,7 +365,7 @@ type ChatRecord struct {
 	UserId      uint64 `protobuf:"varint,3,opt,name=user_id" json:"user_id,omitempty"`
 	Message     string `protobuf:"bytes,4,opt,name=message" json:"message,omitempty"`
 	Response    string `protobuf:"bytes,5,opt,name=response" json:"response,omitempty"`
-	CreateTime  string `protobuf:"bytes,6,opt,name=create_time" json:"create_time,omitempty"`
+	CreateTime  uint64 `protobuf:"varint,6,opt,name=create_time" json:"create_time,omitempty"`
 	MessageType string `protobuf:"bytes,7,opt,name=message_type" json:"message_type,omitempty"` // text, image, etc.
 	Status      string `protobuf:"bytes,8,opt,name=status" json:"status,omitempty"`             // pending, completed, failed
 }
@@ -411,11 +411,11 @@ func (x *ChatRecord) GetResponse() string {
 	return ""
 }
 
-func (x *ChatRecord) GetCreateTime() string {
+func (x *ChatRecord) GetCreateTime() uint64 {
 	if x != nil {
 		return x.CreateTime
 	}
-	return ""
+	return 0
 }
 
 func (x *ChatRecord) GetMessageType() string {
@@ -549,8 +549,8 @@ type Document struct {
 	Title      string `protobuf:"bytes,3,opt,name=title" json:"title,omitempty"`
 	Content    string `protobuf:"bytes,4,opt,name=content" json:"content,omitempty"`
 	Metadata   string `protobuf:"bytes,5,opt,name=metadata" json:"metadata,omitempty"`
-	CreateTime string `protobuf:"bytes,6,opt,name=create_time" json:"create_time,omitempty"`
-	UpdateTime string `protobuf:"bytes,7,opt,name=update_time" json:"update_time,omitempty"`
+	CreateTime uint64 `protobuf:"varint,6,opt,name=create_time" json:"create_time,omitempty"`
+	UpdateTime uint64 `protobuf:"varint,7,opt,name=update_time" json:"update_time,omitempty"`
 }
 
 func (x *Document) Reset() { *x = Document{} }
@@ -594,18 +594,18 @@ func (x *Document) GetMetadata() string {
 	return ""
 }
 
-func (x *Document) GetCreateTime() string {
+func (x *Document) GetCreateTime() uint64 {
 	if x != nil {
 		return x.CreateTime
 	}
-	return ""
+	return 0
 }
 
-func (x *Document) GetUpdateTime() string {
+func (x *Document) GetUpdateTime() uint64 {
 	if x != nil {
 		return x.UpdateTime
 	}
-	return ""
+	return 0
 }
 
 type AddDocumentReq struct {
@@ -1166,9 +1166,9 @@ type Memory struct {
 	MemoryType  string  `protobuf:"bytes,5,opt,name=memory_type" json:"memory_type,omitempty"`
 	Importance  float64 `protobuf:"fixed64,6,opt,name=importance" json:"importance,omitempty"`
 	Metadata    string  `protobuf:"bytes,7,opt,name=metadata" json:"metadata,omitempty"`
-	CreateTime  string  `protobuf:"bytes,8,opt,name=create_time" json:"create_time,omitempty"`
-	UpdateTime  string  `protobuf:"bytes,9,opt,name=update_time" json:"update_time,omitempty"`
-	ExpireTime  string  `protobuf:"bytes,10,opt,name=expire_time" json:"expire_time,omitempty"`
+	CreateTime  uint64  `protobuf:"varint,8,opt,name=create_time" json:"create_time,omitempty"`
+	UpdateTime  uint64  `protobuf:"varint,9,opt,name=update_time" json:"update_time,omitempty"`
+	ExpireTime  uint64  `protobuf:"varint,10,opt,name=expire_time" json:"expire_time,omitempty"`
 	AccessCount int32   `protobuf:"varint,11,opt,name=access_count" json:"access_count,omitempty"`
 }
 
@@ -1227,25 +1227,25 @@ func (x *Memory) GetMetadata() string {
 	return ""
 }
 
-func (x *Memory) GetCreateTime() string {
+func (x *Memory) GetCreateTime() uint64 {
 	if x != nil {
 		return x.CreateTime
 	}
-	return ""
+	return 0
 }
 
-func (x *Memory) GetUpdateTime() string {
+func (x *Memory) GetUpdateTime() uint64 {
 	if x != nil {
 		return x.UpdateTime
 	}
-	return ""
+	return 0
 }
 
-func (x *Memory) GetExpireTime() string {
+func (x *Memory) GetExpireTime() uint64 {
 	if x != nil {
 		return x.ExpireTime
 	}
-	return ""
+	return 0
 }
 
 func (x *Memory) GetAccessCount() int32 {

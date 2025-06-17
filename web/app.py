@@ -13,6 +13,8 @@ from typing import List, Dict
 from contextlib import asynccontextmanager
 from openai import OpenAI
 
+from fastmcp import Client as mcp_client
+
 # API 网关配置
 API_GATEWAY_BASE_URL = "http://localhost:8081"  # 根据实际部署情况修改
 
@@ -402,6 +404,38 @@ FUNCTIONS = [
                 }
             }
         }
+    },
+    {
+        "name": "web_search",
+        "description": "使用博查API进行联网网页搜索，返回摘要和结果",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "需要搜索的关键词"},
+                "count": {"type": "integer", "description": "返回结果数量，最大50，默认10"},
+                "freshness": {"type": "string", "description": "时间范围，可选值：noLimit, oneDay, oneWeek, oneMonth, oneYear"}
+            },
+            "required": ["query"]
+        },
+        "returns": {
+            "type": "object",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "description": "搜索结果列表",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string", "description": "网页标题"},
+                            "url": {"type": "string", "description": "网页链接"},
+                            "snippet": {"type": "string", "description": "简短摘要"},
+                            "siteName": {"type": "string", "description": "网站名"},
+                            "datePublished": {"type": "string", "description": "发布时间"}
+                        }
+                    }
+                }
+            }
+        }
     }
 ]
 
@@ -474,11 +508,6 @@ USER_PROMPT_TEMPLATE = """用户信息：
 - 用户ID：{user_id}
 - 会话ID：{session_id}
 - 当前时间：{current_time}
-- 当前日期：{current_date}
-- 当前月份：{current_month}
-- 当前年份：{current_year}
-- 明天是：{tomorrow_date}
-- 后天是：{day_after_tomorrow_date}
 
 历史记忆：
 {memory}
@@ -487,6 +516,8 @@ USER_PROMPT_TEMPLATE = """用户信息：
 {query}
 
 请根据以上信息，结合你的长期记忆，为用户提供最合适的回复。"""
+
+BOCHA_API_KEY = os.getenv("BOCHA_API_KEY")
 
 # 初始化函数
 def init():
@@ -601,9 +632,10 @@ async def delete_document(doc_id: str):
     try:
         async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL) as client:
             response = await client.delete(
-                f"/document/{doc_id}",
+                "/document/delete",
                 params={
-                    "user_id": 1  # 这里需要根据实际用户ID修改
+                    "doc_id": doc_id,
+                    "user_id": 1
                 }
             )
             
@@ -627,22 +659,121 @@ async def stream_post(request: Request):
         req_data = await request.json()
         query = req_data.get("query")
         session_id = req_data.get("session_id")  # 获取会话ID
-        return await process_stream_request(query, session_id)
+        web_search = req_data.get("web_search")
+        return await process_stream_request(query, session_id, web_search)
     except Exception as e:
         error_msg = str(e)
         print(f"聊天接口错误: {error_msg}")
         raise HTTPException(status_code=500, detail=error_msg)
 
 @app.get("/api/stream")
-async def stream_get(query: str = Query(None), session_id: str = Query(None)):
+async def stream_get(query: str = Query(None), session_id: str = Query(None), web_search: bool = Query(False)):
     try:
         if not query:
             raise HTTPException(status_code=400, detail="Missing query parameter")
-        return await process_stream_request(query, session_id)
+        return await process_stream_request(query, session_id, web_search)
     except Exception as e:
         error_msg = str(e)
         print(f"聊天接口错误: {error_msg}")
         raise HTTPException(status_code=500, detail=error_msg)
+
+# async def process_web_search_by_mcp(arguments: dict):
+#     """
+#     通过 mcp_client 访问博查 MCP Server 实现联网搜索
+#     """
+#     try:
+#         # 1. 初始化 mcp_client（建议全局只初始化一次，这里仅为演示）
+#         # endpoint、api_key 建议放到配置文件或环境变量
+#         endpoint = os.getenv("BOCHA_MCP_ENDPOINT", "https://api.bochaai.com/v1/")
+#         api_key = os.getenv("BOCHA_API_KEY")
+#         client = mcp_client(endpoint=endpoint, api_key=api_key)
+
+#         tools = client.list_tools()
+#         print("可用工具：", tools)
+
+#         # 2. 构造请求参数
+#         payload = {
+#             "query": arguments["query"],
+#             "summary": True,
+#             "count": arguments.get("count", 10),
+#             "freshness": arguments.get("freshness", "noLimit")
+#         }
+
+#         # 3. 调用 mcp_client 的方法（假设为 call，实际方法名请查阅 fastmcp 文档）
+#         # tool_name 可能是 "web_search" 或 "bocha_web_search"，具体看博查 MCP Server 的 tool 列表
+#         tool_name = "web_search"
+#         # 有的 mcp_client 是同步的，如果是同步的用 await asyncio.to_thread(...)
+#         result = await client.call(tool_name, **payload)
+
+#         # 4. 解析结果，适配 function call 返回结构
+#         results = []
+#         for item in result.get("results", []):
+#             results.append({
+#                 "title": item.get("title", ""),
+#                 "url": item.get("url", ""),
+#                 "snippet": item.get("snippet", ""),
+#                 "siteName": item.get("siteName", ""),
+#                 "datePublished": item.get("datePublished", "")
+#             })
+#         return {
+#             "name": "web_search",
+#             "result": "success",
+#             "results": results
+#         }
+#     except Exception as e:
+#         return {
+#             "name": "web_search",
+#             "result": "error",
+#             "error": f"通过MCP访问博查时出错: {str(e)}"
+#         }
+
+async def process_web_search(arguments: dict):
+    print(f"开始处理网页搜索: {arguments}")
+    try:
+        import requests
+
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {BOCHA_API_KEY}'
+        }
+
+        payload = {
+            "query": arguments["query"],
+            "summary": True,
+            "count": arguments.get("count", 10),
+            "freshness": arguments.get("freshness", "noLimit")
+        }
+
+        response = requests.post("https://api.bochaai.com/v1/web-search", headers=headers, json=payload)
+
+        if response.status_code != 200:
+            return {
+                "name": "web_search",
+                "result": "error",
+                "error": f"搜索失败，状态码: {response.status_code}, 详情: {response.text}"
+            }
+
+        json_data = response.json()
+        results = []
+        for item in json_data.get("data", {}).get("webPages", {}).get("value", []):
+            results.append({
+                "title": item.get("name", ""),
+                "url": item.get("url", ""),
+                "snippet": item.get("snippet", ""),
+                "siteName": item.get("siteName", ""),
+                "datePublished": item.get("dateLastCrawled", "")
+            })
+        return {
+            "name": "web_search",
+            "result": "success",
+            "results": results
+        }
+    except Exception as e:
+        return {
+            "name": "web_search",
+            "result": "error",
+            "error": f"执行网络搜索时出错: {str(e)}"
+        }
 
 async def process_function_call(func_call: dict, api_gateway_base_url: str) -> dict:
     """处理单个函数调用
@@ -655,7 +786,10 @@ async def process_function_call(func_call: dict, api_gateway_base_url: str) -> d
         dict: 函数调用结果
     """
     try:
-        if func_call["name"] == "get_weather":
+        if func_call["name"] == "web_search":
+            # return await process_web_search_by_mcp(func_call["arguments"])
+            return await process_web_search(func_call["arguments"])
+        elif func_call["name"] == "get_weather":
             async with httpx.AsyncClient(base_url=api_gateway_base_url) as client:
                 response = await client.get(
                     "/weather/get",
@@ -822,8 +956,12 @@ async def process_function_call(func_call: dict, api_gateway_base_url: str) -> d
         elif func_call["name"] == "delete_memory":
             async with httpx.AsyncClient(base_url=api_gateway_base_url) as client:
                 response = await client.delete(
-                    f"/memory/{func_call['arguments']['memory_id']}",
-                    json={"reason": func_call["arguments"]["reason"]}
+                    "/memory/delete",
+                    params={
+                        "memory_id": func_call["arguments"]["memory_id"],
+                        "user_id": 1,
+                        "reason": func_call["arguments"]["reason"]
+                    }
                 )
                 if response.status_code == 200:
                     result = response.json()
@@ -919,7 +1057,7 @@ async def process_function_call(func_call: dict, api_gateway_base_url: str) -> d
             "error": str(e)
         }
 
-async def process_stream_request(query: str, session_id: str = None):
+async def process_stream_request(query: str, session_id: str = None, web_search: bool = False):
     print(f"开始处理流式请求: query={query}, session_id={session_id}")
     
     # 如果没有提供session_id，创建一个新的
@@ -988,33 +1126,46 @@ async def process_stream_request(query: str, session_id: str = None):
 
     # 获取当前时间
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    current_date = datetime.now().strftime("%Y-%m-%d")
-    current_month = datetime.now().strftime("%Y-%m")
-    current_year = datetime.now().strftime("%Y")
-    from datetime import timedelta
-    tomorrow_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-    day_after_tomorrow_date = (datetime.now() + timedelta(days=2)).strftime("%Y-%m-%d")
     
-    # 构建用户提示词
-    user_prompt = USER_PROMPT_TEMPLATE.format(
-        user_id=1,
-        session_id=session_id,
-        current_time=current_time,
-        current_date=current_date,
-        current_month=current_month,
-        current_year=current_year,
-        tomorrow_date=tomorrow_date,
-        day_after_tomorrow_date=day_after_tomorrow_date,
-        memory=json.dumps(context, ensure_ascii=False),
-        query=query
-    )
+    # 获取历史消息
+    history_messages = []
+    if session_id:
+        try:
+            async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL) as client:
+                resp = await client.get(
+                    "/chat/records/get",
+                    params={
+                        "session_id": session_id,
+                        "page": 1,
+                        "page_size": 20
+                    }
+                )
+                if resp.status_code == 200:
+                    result = resp.json()
+                    for record in result.get("chat_records", []):
+                        if record["message_type"] == "text":
+                            history_messages.append({"role": "user", "content": record["message"]})
+                        else:
+                            history_messages.append({"role": "assistant", "content": record["response"]})
+                else:
+                    print(f"获取历史消息失败: {resp.status_code}")
+        except Exception as e:
+            print(f"获取历史消息失败: {str(e)}")
+    
+    # user_prompt 只用本轮 query
+    user_prompt = query
+    
+    # 拼接 messages：system + 历史消息 + 当前 user
+    system_prompt = f"""{SYSTEM_PROMPT}
+当前时间：{current_time}
+"""
+    messages = [
+        {"role": "system", "content": system_prompt}
+    ]
+    messages.extend(history_messages)
+    messages.append({"role": "user", "content": user_prompt})
     
     # 外层循环：处理整个问答过程
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": user_prompt}
-    ]
-    
     while True:
         # 调用 qwen 模型（非流式模式）
         response = openai_client.chat.completions.create(
@@ -1094,7 +1245,7 @@ async def process_stream_request(query: str, session_id: str = None):
                         "user_id": 1,
                         "message": query,
                         "response": full_response,
-                        "context": json.dumps(context, ensure_ascii=False),
+                        "context": json.dumps(history_messages, ensure_ascii=False),
                         "function_calls": json.dumps(function_calls, ensure_ascii=False),
                         "metadata": json.dumps({
                             "model": "qwen-turbo",
@@ -1136,6 +1287,14 @@ async def process_stream_request(query: str, session_id: str = None):
         }
     )
 
+def format_timestamp(ts):
+    if not ts:
+        return ""
+    try:
+        return datetime.fromtimestamp(int(ts)).strftime("%Y/%m/%d %H:%M:%S")
+    except Exception:
+        return str(ts)
+
 # 会话历史记录 API
 @app.get("/api/chat/history")
 async def get_chat_history():
@@ -1151,28 +1310,20 @@ async def get_chat_history():
                     "page_size": 100
                 }
             )
-            
-            print(f"API 网关响应状态码: {response.status_code}")
-            print(f"API 网关响应内容: {response.text}")
-            
             if response.status_code != 200:
                 raise HTTPException(status_code=500, detail=f"获取会话列表失败: HTTP {response.status_code}")
-                
             result = response.json()
             if result.get("code", 0) != 0:
                 raise HTTPException(status_code=500, detail=f"获取会话列表失败: {result.get('msg', '未知错误')}")
-                
             sessions = []
-            for session in result.get("sessions", []):  # 修改为 sessions
+            for session in result.get("sessions", []):
                 sessions.append({
                     "id": str(session["session_id"]),
                     "summary": session.get("summary", ""),
-                    "updated_at": session.get("update_time", session.get("last_active_time", ""))
+                    "updated_at": format_timestamp(session.get("update_time"))
                 })
-            
             print(f"成功获取到 {len(sessions)} 个会话")
             return sessions
-            
     except Exception as e:
         print(f"获取聊天历史失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"获取聊天历史失败: {str(e)}")
@@ -1182,28 +1333,25 @@ async def get_session(session_id: str):
     try:
         async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL) as client:
             response = await client.get(
-                f"/session/{session_id}",
+                "/session/get",
                 params={
-                    "user_id": 1  # 这里需要根据实际用户ID修改
+                    "user_id": 1,
+                    "session_id": session_id
                 }
             )
-            
             if response.status_code != 200:
                 raise HTTPException(status_code=500, detail="获取会话详情失败")
-                
             result = response.json()
             if result.get("code", 0) != 0:
                 raise HTTPException(status_code=500, detail=result.get("msg", "未知错误"))
-                
             messages = []
-            for record in result.get("session_info", {}).get("chat_records", []):
+            for record in result.get("chat_records", []):
                 messages.append({
                     "role": "user" if record["message_type"] == "text" else "bot",
-                    "content": record["message"] if record["message_type"] == "text" else record["response"]
+                    "content": record["message"] if record["message_type"] == "text" else record["response"],
+                    "created_at": format_timestamp(record.get("create_time"))
                 })
-            
             return {"messages": messages}
-            
     except Exception as e:
         print(f"获取会话详情失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"获取会话详情失败: {str(e)}")
