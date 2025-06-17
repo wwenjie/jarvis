@@ -25,29 +25,29 @@ func Register(r *server.Hertz) {
 		_chat.POST("/record", append(_addchatrecordMw(), api_gateway.AddChatRecord)...)
 		{
 			_records := _chat.Group("/records", _recordsMw()...)
-			_records.GET("/{session_id}", append(_getchatrecordsMw(), api_gateway.GetChatRecords)...)
+			_records.GET("/get", append(_getchatrecordsMw(), api_gateway.GetChatRecords)...)
 		}
 	}
 	{
 		_document := root.Group("/document", _documentMw()...)
 		_document.POST("/add", append(_adddocumentMw(), api_gateway.AddDocument)...)
-		_document.DELETE("/{doc_id}", append(_deletedocumentMw(), api_gateway.DeleteDocument)...)
+		_document.DELETE("/delete", append(_deletedocumentMw(), api_gateway.DeleteDocument)...)
 		_document.GET("/list", append(_listdocumentMw(), api_gateway.ListDocument)...)
 		_document.GET("/search", append(_searchdocumentMw(), api_gateway.SearchDocument)...)
 	}
 	{
 		_memory := root.Group("/memory", _memoryMw()...)
 		_memory.POST("/add", append(_addmemoryMw(), api_gateway.AddMemory)...)
+		_memory.DELETE("/delete", append(_deletememoryMw(), api_gateway.DeleteMemory)...)
 		_memory.GET("/get", append(_getmemoryMw(), api_gateway.GetMemory)...)
-		_memory.DELETE("/{memory_id}", append(_deletememoryMw(), api_gateway.DeleteMemory)...)
 		_memory.GET("/search", append(_searchmemoriesMw(), api_gateway.SearchMemories)...)
 	}
 	{
 		_session := root.Group("/session", _sessionMw()...)
 		_session.POST("/create", append(_createsessionMw(), api_gateway.CreateSession)...)
 		_session.POST("/end", append(_endsessionMw(), api_gateway.EndSession)...)
+		_session.GET("/get", append(_getsessionMw(), api_gateway.GetSession)...)
 		_session.GET("/list", append(_getsessionlistMw(), api_gateway.GetSessionList)...)
-		_session.GET("/{session_id}", append(_getsessionMw(), api_gateway.GetSession)...)
 	}
 	{
 		_user := root.Group("/user", _userMw()...)

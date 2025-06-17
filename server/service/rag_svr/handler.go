@@ -87,8 +87,8 @@ func (s *RagServiceImpl) CreateUser(ctx context.Context, req *rag_svr.CreateUser
 			UserId:     user.ID,
 			UserName:   user.Username,
 			Email:      user.Email,
-			CreateTime: user.CreatedAt.Format(time.RFC3339),
-			UpdateTime: user.UpdatedAt.Format(time.RFC3339),
+			CreateTime: uint64(user.CreatedAt.Unix()),
+			UpdateTime: uint64(user.UpdatedAt.Unix()),
 		},
 	}, nil
 }
@@ -193,8 +193,8 @@ func (s *RagServiceImpl) CreateSession(ctx context.Context, req *rag_svr.CreateS
 			Title:       session.Title,
 			Summary:     session.Summary,
 			Status:      session.Status,
-			CreateTime:  session.CreatedAt.Format(time.RFC3339),
-			UpdateTime:  session.UpdatedAt.Format(time.RFC3339),
+			CreateTime:  uint64(session.CreatedAt.Unix()),
+			UpdateTime:  uint64(session.UpdatedAt.Unix()),
 			UserState:   userState,
 			SystemState: systemState,
 			Metadata:    metadataStr,
@@ -667,8 +667,8 @@ func (s *RagServiceImpl) SearchDocument(ctx context.Context, req *rag_svr.Search
 			Title:      doc.Title,
 			Content:    content,
 			Metadata:   doc.Metadata,
-			CreateTime: doc.CreatedAt.Format(time.RFC3339),
-			UpdateTime: doc.UpdatedAt.Format(time.RFC3339),
+			CreateTime: uint64(doc.CreatedAt.Unix()),
+			UpdateTime: uint64(doc.UpdatedAt.Unix()),
 		})
 		scores = append(scores, score)
 	}
@@ -796,8 +796,8 @@ func (s *RagServiceImpl) GetSessionList(ctx context.Context, req *rag_svr.GetSes
 			Title:       session.Title,
 			Summary:     session.Summary,
 			Status:      session.Status,
-			CreateTime:  session.CreatedAt.Format(time.RFC3339),
-			UpdateTime:  session.UpdatedAt.Format(time.RFC3339),
+			CreateTime:  uint64(session.CreatedAt.Unix()),
+			UpdateTime:  uint64(session.UpdatedAt.Unix()),
 			UserState:   userState,
 			SystemState: systemState,
 			Metadata:    metadataStr,
@@ -885,8 +885,8 @@ func (s *RagServiceImpl) ListDocument(ctx context.Context, req *rag_svr.ListDocu
 			Title:      doc.Title,
 			Content:    "", // 文档内容不返回
 			Metadata:   doc.Metadata,
-			CreateTime: doc.CreatedAt.Format(time.RFC3339),
-			UpdateTime: doc.UpdatedAt.Format(time.RFC3339),
+			CreateTime: uint64(doc.CreatedAt.Unix()),
+			UpdateTime: uint64(doc.UpdatedAt.Unix()),
 		})
 	}
 
@@ -976,8 +976,8 @@ func (s *RagServiceImpl) GetSession(ctx context.Context, req *rag_svr.GetSession
 			Title:       session.Title,
 			Summary:     session.Summary,
 			Status:      session.Status,
-			CreateTime:  session.CreatedAt.Format(time.RFC3339),
-			UpdateTime:  session.UpdatedAt.Format(time.RFC3339),
+			CreateTime:  uint64(session.CreatedAt.Unix()),
+			UpdateTime:  uint64(session.UpdatedAt.Unix()),
 			UserState:   userState,
 			SystemState: systemState,
 			Metadata:    metadataStr,
@@ -990,7 +990,7 @@ func (s *RagServiceImpl) GetSession(ctx context.Context, req *rag_svr.GetSession
 						UserId:      record.UserID,
 						Message:     record.Message,
 						Response:    record.Response,
-						CreateTime:  record.CreatedAt.Format(time.RFC3339),
+						CreateTime:  uint64(record.CreatedAt.Unix()),
 						MessageType: record.MessageType,
 						Status:      record.Status,
 					})
@@ -1139,7 +1139,7 @@ func (s *RagServiceImpl) GetChatRecords(ctx context.Context, req *rag_svr.GetCha
 			Response:    record.Response,
 			MessageType: record.MessageType,
 			Status:      record.Status,
-			CreateTime:  record.CreatedAt.Format(time.RFC3339),
+			CreateTime:  uint64(record.CreatedAt.Unix()),
 		})
 	}
 
@@ -1258,9 +1258,9 @@ func (s *RagServiceImpl) GetMemory(ctx context.Context, req *rag_svr.GetMemoryRe
 			MemoryType:  memory.Type,
 			Importance:  memory.Importance,
 			Metadata:    string(metadataJSON),
-			CreateTime:  memory.CreatedAt.Format(time.RFC3339),
-			UpdateTime:  memory.LastAccessed.Format(time.RFC3339),
-			ExpireTime:  memory.ExpiresAt.Format(time.RFC3339),
+			CreateTime:  uint64(memory.CreatedAt.Unix()),
+			UpdateTime:  uint64(memory.LastAccessed.Unix()),
+			ExpireTime:  uint64(memory.ExpiresAt.Unix()),
 			AccessCount: int32(memory.AccessCount),
 		},
 	}, nil
@@ -1295,9 +1295,9 @@ func (s *RagServiceImpl) SearchMemories(ctx context.Context, req *rag_svr.Search
 			MemoryType:  mem.Type,
 			Importance:  float64(mem.Importance),
 			Metadata:    string(metadataJSON),
-			CreateTime:  mem.CreatedAt.Format(time.RFC3339),
-			UpdateTime:  mem.LastAccessed.Format(time.RFC3339),
-			ExpireTime:  mem.ExpiresAt.Format(time.RFC3339),
+			CreateTime:  uint64(mem.CreatedAt.Unix()),
+			UpdateTime:  uint64(mem.LastAccessed.Unix()),
+			ExpireTime:  uint64(mem.ExpiresAt.Unix()),
 			AccessCount: int32(mem.AccessCount),
 		})
 	}
@@ -1332,7 +1332,14 @@ func (s *RagServiceImpl) DeleteMemory(ctx context.Context, req *rag_svr.DeleteMe
 		}, nil
 	}
 
-	logger.Infof("记忆删除成功")
+	// 从 Milvus 中删除向量
+	err = milvus.DeleteVector(ctx, milvus.MemoryCollectionName, int64(req.MemoryId))
+	if err != nil {
+		logger.Errorf("删除 Milvus 向量失败: %v", err)
+		// 这里可以选择忽略错误，或者返回部分成功
+	}
+
+	logger.Infof("记忆删除成功（含 Milvus 向量）")
 
 	return &rag_svr.DeleteMemoryRsp{
 		Code: 0,

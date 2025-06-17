@@ -881,7 +881,7 @@ func AddChatRecord(ctx context.Context, c *app.RequestContext) {
 
 // GetChatRecords 获取聊天记录
 func GetChatRecords(ctx context.Context, c *app.RequestContext) {
-	sessionId := c.Param("session_id")
+	sessionId := c.Query("session_id")
 	if sessionId == "" {
 		c.JSON(http.StatusBadRequest, api_gateway.BaseRsp{
 			Code: 1,
