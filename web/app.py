@@ -542,46 +542,27 @@ async def upload_document(file: UploadFile = File(...)):
     if not file.filename.endswith((".txt", ".pdf", ".docx")):
         raise HTTPException(status_code=400, detail="仅支持.txt或.pdf或.docx文件")
     
-    # 确保docs目录存在
-    os.makedirs("docs", exist_ok=True)
-    
-    # 保存文件到docs目录
-    file_path = os.path.join("docs", file.filename)
-    
-    # 检查文件名是否重复，如果重复则添加时间戳
-    if os.path.exists(file_path):
-        filename, extension = os.path.splitext(file.filename)
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        file_path = os.path.join("docs", f"{filename}_{timestamp}{extension}")
-        file_name = f"{filename}_{timestamp}{extension}"
-    else:
-        file_name = file.filename
-        
+    file_name = file.filename    
     # 读取文件内容
     content = await file.read()
     
-    # 保存文件到磁盘
-    with open(file_path, "wb") as f:
-        f.write(content)
-    
-    # 读取文件内容（用于存储在内存中）
-    if file.filename.endswith(".txt"):
+    # 读取文件内容
+    if file_name.endswith(".txt"):
         try:
             content_text = content.decode("utf-8")
         except UnicodeDecodeError:
             content_text = content.decode("gbk", errors="ignore")
     else:
-        content_text = f"文件内容已保存到 {file_path}"  # 实际需用pdf/docx解析库
+        raise HTTPException(status_code=400, detail="暂不支持txt以外的文件")
     
     # 调用 API 网关添加文档
-    async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL, timeout=30.0) as client:
         response = await client.post(
             "/document/add",
             json={
                 "user_id": 1,  # 这里需要根据实际用户ID修改
                 "title": file_name,
                 "content": content_text,
-                "metadata": json.dumps({"path": file_path})
             }
         )
         
@@ -601,7 +582,7 @@ async def list_documents():
     try:
         print(f"正在请求 API 网关: {API_GATEWAY_BASE_URL}/document/list")
         print(f"请求参数: user_id=1, page=1, page_size=100")
-        async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL) as client:
+        async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL, timeout=5.0) as client:
             response = await client.get(
                 "/document/list",
                 params={
@@ -630,7 +611,7 @@ async def list_documents():
 @app.delete("/api/documents/{doc_id}")
 async def delete_document(doc_id: str):
     try:
-        async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL) as client:
+        async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL, timeout=5.0) as client:
             response = await client.delete(
                 "/document/delete",
                 params={
@@ -790,7 +771,7 @@ async def process_function_call(func_call: dict, api_gateway_base_url: str) -> d
             # return await process_web_search_by_mcp(func_call["arguments"])
             return await process_web_search(func_call["arguments"])
         elif func_call["name"] == "get_weather":
-            async with httpx.AsyncClient(base_url=api_gateway_base_url) as client:
+            async with httpx.AsyncClient(base_url=api_gateway_base_url, timeout=10.0) as client:
                 response = await client.get(
                     "/weather/get",
                     params={
@@ -820,7 +801,7 @@ async def process_function_call(func_call: dict, api_gateway_base_url: str) -> d
                     }
         
         elif func_call["name"] == "search_document":
-            async with httpx.AsyncClient(base_url=api_gateway_base_url) as client:
+            async with httpx.AsyncClient(base_url=api_gateway_base_url, timeout=20.0) as client:
                 response = await client.get(
                     "/document/search",
                     params={
@@ -853,7 +834,7 @@ async def process_function_call(func_call: dict, api_gateway_base_url: str) -> d
                     }
         
         elif func_call["name"] == "search_memories":
-            async with httpx.AsyncClient(base_url=api_gateway_base_url) as client:
+            async with httpx.AsyncClient(base_url=api_gateway_base_url, timeout=10.0) as client:
                 response = await client.get(
                     "/memory/search",
                     params={
@@ -885,7 +866,7 @@ async def process_function_call(func_call: dict, api_gateway_base_url: str) -> d
                     }
         
         elif func_call["name"] == "add_memory":
-            async with httpx.AsyncClient(base_url=api_gateway_base_url) as client:
+            async with httpx.AsyncClient(base_url=api_gateway_base_url, timeout=5.0) as client:
                 # 确保参数类型正确
                 args = func_call["arguments"]
                 request_data = {
@@ -927,7 +908,7 @@ async def process_function_call(func_call: dict, api_gateway_base_url: str) -> d
                     }
         
         elif func_call["name"] == "get_memory":
-            async with httpx.AsyncClient(base_url=api_gateway_base_url) as client:
+            async with httpx.AsyncClient(base_url=api_gateway_base_url, timeout=10.0) as client:
                 response = await client.get(
                     "/memory/get",
                     params={"memory_id": func_call["arguments"]["memory_id"]}
@@ -954,18 +935,30 @@ async def process_function_call(func_call: dict, api_gateway_base_url: str) -> d
                     }
         
         elif func_call["name"] == "delete_memory":
-            async with httpx.AsyncClient(base_url=api_gateway_base_url) as client:
-                response = await client.delete(
-                    "/memory/delete",
+            async with httpx.AsyncClient(base_url=api_gateway_base_url, timeout=5.0) as client:
+                response = await client.request(
+                    method="DELETE",
+                    url="/memory/delete",
                     params={
                         "memory_id": func_call["arguments"]["memory_id"],
-                        "user_id": 1,
+                        "user_id": 1
+                    },
+                    content=json.dumps({
                         "reason": func_call["arguments"]["reason"]
-                    }
+                    }),
+                    headers={"Content-Type": "application/json"}
                 )
                 if response.status_code == 200:
-                    result = response.json()
-                    if result["code"] == 0:
+                    try:
+                        result = response.json()
+                    except Exception as e:
+                        print("解析响应失败:", e, response.text)
+                        return {
+                            "name": "delete_memory",
+                            "result": "error",
+                            "error": f"响应不是合法JSON: {response.text}"
+                        }
+                    if result.get("code", 1) == 0:
                         return {
                             "name": "delete_memory",
                             "result": "success",
@@ -975,9 +968,10 @@ async def process_function_call(func_call: dict, api_gateway_base_url: str) -> d
                         return {
                             "name": "delete_memory",
                             "result": "error",
-                            "error": result.get("msg")
+                            "error": result.get("msg", "未知错误")
                         }
                 else:
+                    print(f"删除记忆响应: {response.text}")
                     return {
                         "name": "delete_memory",
                         "result": "error",
@@ -985,7 +979,7 @@ async def process_function_call(func_call: dict, api_gateway_base_url: str) -> d
                     }
         
         elif func_call["name"] == "get_hourly_weather":
-            async with httpx.AsyncClient(base_url=api_gateway_base_url) as client:
+            async with httpx.AsyncClient(base_url=api_gateway_base_url, timeout=10.0) as client:
                 response = await client.get(
                     "/weather/hourly",
                     params={
@@ -1015,7 +1009,7 @@ async def process_function_call(func_call: dict, api_gateway_base_url: str) -> d
                     }
         
         elif func_call["name"] == "get_daily_weather":
-            async with httpx.AsyncClient(base_url=api_gateway_base_url) as client:
+            async with httpx.AsyncClient(base_url=api_gateway_base_url, timeout=10.0) as client:
                 response = await client.get(
                     "/weather/daily",
                     params={
@@ -1063,7 +1057,7 @@ async def process_stream_request(query: str, session_id: str = None, web_search:
     # 如果没有提供session_id，创建一个新的
     if not session_id:
         print("创建新会话...")
-        async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL) as client:
+        async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL, timeout=5.0) as client:
             response = await client.post(
                 "/session/create",
                 json={
@@ -1131,7 +1125,7 @@ async def process_stream_request(query: str, session_id: str = None, web_search:
     history_messages = []
     if session_id:
         try:
-            async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL) as client:
+            async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL, timeout=5.0) as client:
                 resp = await client.get(
                     "/chat/records/get",
                     params={
@@ -1142,15 +1136,15 @@ async def process_stream_request(query: str, session_id: str = None, web_search:
                 )
                 if resp.status_code == 200:
                     result = resp.json()
-                    for record in result.get("chat_records", []):
-                        if record["message_type"] == "text":
-                            history_messages.append({"role": "user", "content": record["message"]})
-                        else:
-                            history_messages.append({"role": "assistant", "content": record["response"]})
+                    for record in result.get("records", []):
+                        history_messages.append({"role": "user", "content": record["message"]})
+                        history_messages.append({"role": "assistant", "content": record["response"]})
                 else:
-                    print(f"获取历史消息失败: {resp.status_code}")
+                    print(f"获取历史消息失败: {resp.status_code} {resp.json()}")
         except Exception as e:
             print(f"获取历史消息失败: {str(e)}")
+
+    print(f"history_messages: {history_messages}")
     
     # user_prompt 只用本轮 query
     user_prompt = query
@@ -1237,7 +1231,7 @@ async def process_stream_request(query: str, session_id: str = None, web_search:
     # 保存聊天记录
     if session_id and full_response:
         try:
-            async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL) as client:
+            async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL, timeout=5.0) as client:
                 response = await client.post(
                     "/chat/record",
                     json={
@@ -1300,7 +1294,7 @@ def format_timestamp(ts):
 async def get_chat_history():
     try:
         print("开始获取聊天历史...")
-        async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL) as client:
+        async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL, timeout=5.0) as client:
             print(f"请求 API 网关: {API_GATEWAY_BASE_URL}/session/list")
             response = await client.get(
                 "/session/list",
@@ -1331,7 +1325,7 @@ async def get_chat_history():
 @app.get("/api/chat/session/{session_id}")
 async def get_session(session_id: str):
     try:
-        async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL) as client:
+        async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL, timeout=5.0) as client:
             response = await client.get(
                 "/session/get",
                 params={
@@ -1360,7 +1354,7 @@ async def get_session(session_id: str):
 @app.delete("/api/chat/session/{session_id}")
 async def delete_session(session_id: str):
     try:
-        async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL) as client:
+        async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL, timeout=5.0) as client:
             response = await client.post(
                 "/session/end",
                 json={

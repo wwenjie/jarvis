@@ -226,7 +226,8 @@ message Memory {
 // 记忆管理
 message DeleteMemoryReq {
     uint64 memory_id = 1[(api.query) = "memory_id", (api.vd) = "$>0"];
-    string reason = 2[(api.body) = "reason"];  // 删除原因，由大模型提供
+    uint64 user_id = 2[(api.query) = "user_id", (api.vd) = "$>0"];
+    string reason = 3[(api.body) = "reason"];  // 删除原因，由大模型提供
 }
 
 message DeleteMemoryRsp {

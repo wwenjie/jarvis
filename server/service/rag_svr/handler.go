@@ -409,6 +409,8 @@ func (s *RagServiceImpl) AddDocument(ctx context.Context, req *rag_svr.AddDocume
 	jieba := gojieba.NewJieba()
 	defer jieba.Free()
 
+	logger.Infof("段落数量: %d", len(paragraphs))
+
 	// 处理每个段落
 	for i, paraContent := range paragraphs {
 		// 获取段落ID
@@ -480,6 +482,7 @@ func (s *RagServiceImpl) AddDocument(ctx context.Context, req *rag_svr.AddDocume
 					Msg:  fmt.Sprintf("创建句子失败: %v", err),
 				}, nil
 			}
+
 		}
 
 		// 创建滑动窗口
@@ -849,7 +852,7 @@ func (s *RagServiceImpl) ListDocument(ctx context.Context, req *rag_svr.ListDocu
 
 	// 获取用户的文档列表
 	var documents []mysql.Document
-	query := mysql.GetDB().Table("document").Model(&mysql.Document{}).Where("user_id = ?", req.UserId)
+	query := mysql.GetDB().Table("document").Model(&mysql.Document{})
 
 	// 获取总数
 	var total int64
@@ -1302,7 +1305,12 @@ func (s *RagServiceImpl) SearchMemories(ctx context.Context, req *rag_svr.Search
 		})
 	}
 
-	logger.Infof("搜索记忆完成: 找到%d个结果", len(memoryList))
+	memoryIdList := make([]uint64, 0, len(memoryList))
+	for _, mem := range memoryList {
+		memoryIdList = append(memoryIdList, mem.MemoryId)
+	}
+
+	logger.Infof("搜索记忆完成: 找到%d个结果, query: %s, limit: %d, memoryIdList: %v", len(memoryList), req.Query, req.Limit, memoryIdList)
 	return &rag_svr.SearchMemoriesRsp{
 		Code:     0,
 		Msg:      "success",
@@ -1316,7 +1324,7 @@ func (s *RagServiceImpl) DeleteMemory(ctx context.Context, req *rag_svr.DeleteMe
 
 	// 验证权限
 	if err := s.verifyMemoryAccess(ctx, req.MemoryId, req.UserId); err != nil {
-		logger.Errorf("权限验证失败: %v", err)
+		logger.Errorf("权限验证失败: %v, memoryId: %d, userId: %d", err, req.MemoryId, req.UserId)
 		return &rag_svr.DeleteMemoryRsp{
 			Code: 1,
 			Msg:  fmt.Sprintf("权限验证失败: %v", err),
@@ -1325,7 +1333,7 @@ func (s *RagServiceImpl) DeleteMemory(ctx context.Context, req *rag_svr.DeleteMe
 
 	// 从数据库中删除记忆
 	if err := mysql.GetDB().Table("chat_memory").Where("id = ?", req.MemoryId).Delete(&mysql.ChatMemory{}).Error; err != nil {
-		logger.Errorf("删除记忆失败: %v", err)
+		logger.Errorf("删除记忆失败: %v, memoryId: %d, userId: %d", err, req.MemoryId, req.UserId)
 		return &rag_svr.DeleteMemoryRsp{
 			Code: 1,
 			Msg:  fmt.Sprintf("删除记忆失败: %v", err),
@@ -1335,11 +1343,11 @@ func (s *RagServiceImpl) DeleteMemory(ctx context.Context, req *rag_svr.DeleteMe
 	// 从 Milvus 中删除向量
 	err = milvus.DeleteVector(ctx, milvus.MemoryCollectionName, int64(req.MemoryId))
 	if err != nil {
-		logger.Errorf("删除 Milvus 向量失败: %v", err)
+		logger.Errorf("删除 Milvus 向量失败: %v, memoryId: %d, userId: %d", err, req.MemoryId, req.UserId)
 		// 这里可以选择忽略错误，或者返回部分成功
 	}
 
-	logger.Infof("记忆删除成功（含 Milvus 向量）")
+	logger.Infof("记忆删除成功, memoryId: %d, userId: %d", req.MemoryId, req.UserId)
 
 	return &rag_svr.DeleteMemoryRsp{
 		Code: 0,

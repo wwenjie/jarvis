@@ -225,6 +225,7 @@ func EndSession(ctx context.Context, c *app.RequestContext) {
 // AddDocument .
 // @router /document/add [POST]
 func AddDocument(ctx context.Context, c *app.RequestContext) {
+	logger.Infof("AddDocument: %+v", c.Request.Body())
 	var err error
 	var req api_gateway.AddDocumentReq
 	err = c.BindAndValidate(&req)
@@ -244,8 +245,11 @@ func AddDocument(ctx context.Context, c *app.RequestContext) {
 
 	ragSvrClient := client.(ragservice.Client)
 
-	// 调用 rag_svr 的 AddDocument 方法
-	resp, err := ragSvrClient.AddDocument(ctx, &rag_svr.AddDocumentReq{
+	// 设置更长的超时时间，比如 60 秒
+	timeoutCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	resp, err := ragSvrClient.AddDocument(timeoutCtx, &rag_svr.AddDocumentReq{
 		UserId:   req.UserId,
 		Title:    req.Title,
 		Content:  req.Content,
@@ -772,7 +776,7 @@ func SearchMemories(ctx context.Context, c *app.RequestContext) {
 
 // DeleteMemory 删除记忆
 func DeleteMemory(ctx context.Context, c *app.RequestContext) {
-	memoryId := c.Param("memory_id")
+	memoryId := c.Query("memory_id")
 	if memoryId == "" {
 		c.JSON(http.StatusBadRequest, api_gateway.BaseRsp{
 			Code: 1,
@@ -781,11 +785,29 @@ func DeleteMemory(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	id, err := strconv.ParseUint(memoryId, 10, 64)
+	memoryIdInt, err := strconv.ParseUint(memoryId, 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, api_gateway.BaseRsp{
 			Code: 1,
 			Msg:  fmt.Sprintf("无效的 memory_id: %v", err),
+		})
+		return
+	}
+
+	userId := c.Query("user_id")
+	if userId == "" {
+		c.JSON(http.StatusBadRequest, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  "user_id 不能为空",
+		})
+		return
+	}
+
+	userIdInt, err := strconv.ParseUint(userId, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, api_gateway.BaseRsp{
+			Code: 1,
+			Msg:  fmt.Sprintf("无效的 user_id: %v", err),
 		})
 		return
 	}
@@ -813,7 +835,8 @@ func DeleteMemory(ctx context.Context, c *app.RequestContext) {
 
 	// 调用 RAG 服务
 	resp, err := ragSvrClient.DeleteMemory(ctx, &rag_svr.DeleteMemoryReq{
-		MemoryId: id,
+		MemoryId: memoryIdInt,
+		UserId:   userIdInt,
 		Reason:   req.Reason,
 	})
 	if err != nil {
@@ -958,6 +981,8 @@ func GetChatRecords(ctx context.Context, c *app.RequestContext) {
 			CreateTime:  r.CreateTime,
 		}
 	}
+
+	logger.Infof("获取聊天记录完成: sessionId: %d, records: %v", id, records)
 
 	c.JSON(http.StatusOK, api_gateway.GetChatRecordsRsp{
 		Code:     int32(resp.Code),
