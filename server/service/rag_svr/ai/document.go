@@ -16,7 +16,6 @@ import (
 	"server/framework/redis"
 	"server/service/rag_svr/kitex_gen/rag_svr"
 
-	"github.com/neurosnap/sentences"
 	"github.com/yanyiwu/gojieba"
 	"go.mongodb.org/mongo-driver/bson"
 
@@ -185,7 +184,6 @@ func (s *DocumentService) AddDocument(ctx context.Context, req *rag_svr.AddDocum
 	logger.Infof("文档记录创建成功: docID=%d", docID)
 
 	// 使用 neurosnap/sentences 切分段落和句子
-	tokenizer := sentences.NewSentenceTokenizer(nil)
 	paragraphs := splitIntoParagraphs(req.Content)
 	jieba := gojieba.NewJieba()
 	defer jieba.Free()
@@ -194,17 +192,19 @@ func (s *DocumentService) AddDocument(ctx context.Context, req *rag_svr.AddDocum
 		paraID := uint64(i + 1)
 		keywords := jieba.Extract(paraContent, 5)
 		keywordsJSON, _ := json.Marshal(keywords)
-		sentences := tokenizer.Tokenize(paraContent)
+
+		// 使用更安全的句子分割方式
+		sentences := splitIntoSentences(paraContent)
 		sentenceIDs := make([]uint64, len(sentences))
 		sentenceIDMin := globalSentenceID
-		for j, sent := range sentences {
+		for j, sentContent := range sentences {
 			sentID := globalSentenceID
 			sentenceIDs[j] = sentID
 			sentRow := &mysql.DocumentSentence{
 				DocID:       docID,
 				SentenceID:  sentID,
 				ParagraphID: paraID,
-				Content:     sent.Text,
+				Content:     sentContent,
 			}
 			// 明确指定表名创建句子
 			if err := tx.Table("document_sentence").Create(sentRow).Error; err != nil {
@@ -246,7 +246,7 @@ func (s *DocumentService) AddDocument(ctx context.Context, req *rag_svr.AddDocum
 			// 合并 [j:end) 这些句子
 			var chunkContent string
 			for k := j; k < end; k++ {
-				chunkContent += sentences[k].Text + " "
+				chunkContent += sentences[k] + " "
 			}
 			chunkContent = strings.TrimSpace(chunkContent)
 			chunkKeywords := jieba.Extract(chunkContent, 5)
@@ -676,12 +676,28 @@ func splitIntoParagraphs(content string) []string {
 
 // splitIntoSentences 将文本分割成句子
 func splitIntoSentences(content string) []string {
-	tokenizer := sentences.NewSentenceTokenizer(nil)
-	sentences := tokenizer.Tokenize(content)
-	result := make([]string, len(sentences))
+	// 使用简单的标点符号分割，避免依赖外部库可能的问题
+	if content == "" {
+		return []string{}
+	}
 
-	for i, sent := range sentences {
-		result[i] = sent.Text
+	// 简单的句子分割：按句号、问号、感叹号分割
+	sentences := strings.FieldsFunc(content, func(r rune) bool {
+		return r == '。' || r == '！' || r == '？' || r == '.' || r == '!' || r == '?'
+	})
+
+	// 过滤空句子并清理
+	result := make([]string, 0, len(sentences))
+	for _, sent := range sentences {
+		sent = strings.TrimSpace(sent)
+		if sent != "" {
+			result = append(result, sent)
+		}
+	}
+
+	// 如果没有分割出句子，将整个内容作为一个句子
+	if len(result) == 0 {
+		result = append(result, strings.TrimSpace(content))
 	}
 
 	return result
@@ -706,7 +722,7 @@ func (s *DocumentService) SearchDocument(ctx context.Context, req *rag_svr.Searc
 		}, nil
 	}
 
-	ids, scores, err := milvus.SearchVector(ctx, "document", queryEmbedding, int(req.TopK*2))
+	ids, scores, err := milvus.SearchVector(ctx, milvus.DocumentCollectionName, queryEmbedding, int(req.TopK*2))
 	if err != nil {
 		logger.Errorf("向量搜索失败: %v", err)
 		return &rag_svr.SearchDocumentRsp{
@@ -715,15 +731,9 @@ func (s *DocumentService) SearchDocument(ctx context.Context, req *rag_svr.Searc
 		}, nil
 	}
 
-	jieba := gojieba.NewJieba()
-	defer jieba.Free()
-	queryKeywords := jieba.Extract(req.Query, 5)
-	queryKeywordsStr := strings.Join(queryKeywords, " ")
-	keywordCondition := "MATCH(keywords) AGAINST(? IN BOOLEAN MODE)"
-
+	// 直接根据向量搜索的结果获取文档块，不查询keywords
 	var chunks []mysql.DocumentChunk
-	if err := mysql.GetDB().Table("document_chunk").Where("chunk_id IN ? AND "+keywordCondition,
-		ids, queryKeywordsStr).Find(&chunks).Error; err != nil {
+	if err := mysql.GetDB().Table("document_chunk").Where("chunk_id IN ?", ids).Find(&chunks).Error; err != nil {
 		logger.Errorf("获取文档块详情失败: %v", err)
 		return &rag_svr.SearchDocumentRsp{
 			Code: 1,
@@ -732,7 +742,8 @@ func (s *DocumentService) SearchDocument(ctx context.Context, req *rag_svr.Searc
 	}
 
 	var documents []*rag_svr.Document
-	for _, chunk := range chunks {
+	var finalScores []float32
+	for i, chunk := range chunks {
 		var doc mysql.Document
 		if err := mysql.GetDB().Table("document").First(&doc, chunk.DocID).Error; err != nil {
 			logger.Errorf("获取文档信息失败: %v", err)
@@ -749,7 +760,12 @@ func (s *DocumentService) SearchDocument(ctx context.Context, req *rag_svr.Searc
 		for _, sent := range sentences {
 			content += sent.Content + " "
 		}
-		score := calculateRelevanceScore(chunk, queryKeywords)
+		// 使用向量搜索的分数
+		if i < len(scores) {
+			finalScores = append(finalScores, scores[i])
+		} else {
+			finalScores = append(finalScores, 0.0)
+		}
 		documents = append(documents, &rag_svr.Document{
 			DocId:      doc.DocID,
 			UserId:     doc.UserID,
@@ -759,7 +775,6 @@ func (s *DocumentService) SearchDocument(ctx context.Context, req *rag_svr.Searc
 			CreateTime: uint64(doc.CreatedAt.Unix()),
 			UpdateTime: uint64(doc.UpdatedAt.Unix()),
 		})
-		scores = append(scores, score)
 	}
 
 	logger.Infof("文档搜索完成: 找到%d个结果", len(documents))
@@ -768,7 +783,7 @@ func (s *DocumentService) SearchDocument(ctx context.Context, req *rag_svr.Searc
 		Code:      0,
 		Msg:       "success",
 		Documents: documents,
-		Scores:    scores,
+		Scores:    finalScores,
 	}, nil
 }
 

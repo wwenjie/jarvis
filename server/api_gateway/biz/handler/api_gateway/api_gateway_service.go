@@ -988,7 +988,7 @@ func GetChatRecords(ctx context.Context, c *app.RequestContext) {
 		}
 	}
 
-	logger.Infof("获取聊天记录完成: sessionId: %d, records: %v", id, records)
+	// logger.Infof("获取聊天记录完成: sessionId: %d, records: %v", id, records)
 
 	c.JSON(http.StatusOK, api_gateway.GetChatRecordsRsp{
 		Code:     int32(resp.Code),
