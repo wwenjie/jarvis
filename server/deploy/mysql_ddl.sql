@@ -96,6 +96,9 @@ CREATE TABLE IF NOT EXISTS `document` (
     `title` varchar(200) NOT NULL COMMENT '标题',
     `status` varchar(20) NOT NULL DEFAULT 'active' COMMENT '文档状态(active/archived/deleted)',
     `metadata` json DEFAULT NULL COMMENT '元数据',
+    `paragraph_count` int unsigned NOT NULL DEFAULT 0 COMMENT '段落数',
+    `sentence_count` int unsigned NOT NULL DEFAULT 0 COMMENT '句子数',
+    `keywords` json DEFAULT NULL COMMENT '文档关键词及权重',
     `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`doc_id`),
@@ -104,30 +107,28 @@ CREATE TABLE IF NOT EXISTS `document` (
 
 -- 段落表
 CREATE TABLE IF NOT EXISTS `document_paragraph` (
-    `paragraph_id` bigint unsigned NOT NULL COMMENT '段落ID',
     `doc_id` bigint unsigned NOT NULL COMMENT '文档ID',
+    `paragraph_id` bigint unsigned NOT NULL COMMENT '段落ID',
     `content` text NOT NULL COMMENT '段落内容',
-    `order_num` int unsigned NOT NULL COMMENT '段落顺序',
+    `sentence_id_min` bigint unsigned NOT NULL COMMENT '最小句子ID',
+    `sentence_id_max` bigint unsigned NOT NULL COMMENT '最大句子ID',
     `keywords` JSON DEFAULT NULL COMMENT '段落关键词及权重',
     `keyword_text` VARCHAR(1024) AS (JSON_UNQUOTE(JSON_EXTRACT(`keywords`, '$[*].word'))) STORED COMMENT '关键词文本（用于全文索引）',
     `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    PRIMARY KEY (`paragraph_id`),
-    KEY `idx_doc_id` (`doc_id`),
+    PRIMARY KEY (`doc_id`, `paragraph_id`),
     FULLTEXT KEY `idx_keyword_text` (`keyword_text`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='段落表';
 
 -- 句子表
 CREATE TABLE IF NOT EXISTS `document_sentence` (
-    `sentence_id` bigint unsigned NOT NULL COMMENT '句子ID',
     `doc_id` bigint unsigned NOT NULL COMMENT '文档ID',
+    `sentence_id` bigint unsigned NOT NULL COMMENT '句子ID',
     `paragraph_id` bigint unsigned NOT NULL COMMENT '段落ID',
     `content` text NOT NULL COMMENT '句子内容',
-    `order_num` int unsigned NOT NULL COMMENT '句子顺序',
     `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    PRIMARY KEY (`sentence_id`),
-    KEY `idx_paragraph_id` (`paragraph_id`)
+    PRIMARY KEY (`doc_id`, `sentence_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='句子表';
 
 -- 文档块表
@@ -135,16 +136,14 @@ CREATE TABLE IF NOT EXISTS `document_chunk` (
     `chunk_id` bigint unsigned NOT NULL COMMENT '块ID',
     `doc_id` bigint unsigned NOT NULL COMMENT '文档ID',
     `paragraph_id` bigint unsigned NOT NULL COMMENT '段落ID',
-    `sentence_id_1` bigint unsigned NOT NULL COMMENT '第一个句子ID',
-    `sentence_id_2` bigint unsigned NOT NULL COMMENT '第二个句子ID',
-    `sentence_id_3` bigint unsigned NOT NULL COMMENT '第三个句子ID',
+    `sentence_id_min` bigint unsigned NOT NULL COMMENT '最小句子ID',
+    `sentence_id_max` bigint unsigned NOT NULL COMMENT '最大句子ID',
     `keywords` JSON DEFAULT NULL COMMENT '块关键词及权重',
     `keyword_text` VARCHAR(1024) AS (JSON_UNQUOTE(JSON_EXTRACT(`keywords`, '$[*].word'))) STORED COMMENT '关键词文本（用于全文索引）',
     `embedding` blob DEFAULT NULL COMMENT '块的向量嵌入',
     `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`chunk_id`),
-    KEY `idx_paragraph_id` (`paragraph_id`),
     FULLTEXT KEY `idx_keyword_text` (`keyword_text`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='文档块表';
 
@@ -165,6 +164,4 @@ INSERT INTO `id_generator` (`id_name`, `sequence`) VALUES
 ('chat_memory_id', 0),
 ('reminder_id', 0),
 ('document_id', 0),
-('document_paragraph_id', 0),
-('document_sentence_id', 0),
 ('document_chunk_id', 0);

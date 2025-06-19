@@ -18,6 +18,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/common/utils"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"github.com/cloudwego/kitex/client/callopt"
 	"github.com/cloudwego/kitex/pkg/rpcinfo"
 )
 
@@ -225,11 +226,12 @@ func EndSession(ctx context.Context, c *app.RequestContext) {
 // AddDocument .
 // @router /document/add [POST]
 func AddDocument(ctx context.Context, c *app.RequestContext) {
-	logger.Infof("AddDocument: %+v", c.Request.Body())
+	logger.Infof("start AddDocument")
 	var err error
 	var req api_gateway.AddDocumentReq
 	err = c.BindAndValidate(&req)
 	if err != nil {
+		logger.Errorf("AddDocument BindAndValidate error: %v", err)
 		c.String(consts.StatusBadRequest, err.Error())
 		return
 	}
@@ -237,6 +239,7 @@ func AddDocument(ctx context.Context, c *app.RequestContext) {
 	// 从上下文中获取客户端
 	client, exists := c.Get("rag_svr_client")
 	if !exists {
+		logger.Errorf("AddDocument client not found")
 		c.JSON(consts.StatusInternalServerError, utils.H{
 			"error": "客户端未初始化",
 		})
@@ -245,22 +248,25 @@ func AddDocument(ctx context.Context, c *app.RequestContext) {
 
 	ragSvrClient := client.(ragservice.Client)
 
-	// 设置更长的超时时间，比如 60 秒
-	timeoutCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
-	defer cancel()
-
-	resp, err := ragSvrClient.AddDocument(timeoutCtx, &rag_svr.AddDocumentReq{
-		UserId:   req.UserId,
-		Title:    req.Title,
-		Content:  req.Content,
-		Metadata: req.Metadata,
-	})
+	resp, err := ragSvrClient.AddDocument(
+		ctx,
+		&rag_svr.AddDocumentReq{
+			UserId:   req.UserId,
+			Title:    req.Title,
+			Content:  req.Content,
+			Metadata: req.Metadata,
+		},
+		callopt.WithRPCTimeout(60*time.Second),
+	)
 	if err != nil {
+		logger.Errorf("AddDocument error: %v", err)
 		c.JSON(consts.StatusInternalServerError, utils.H{
 			"error": fmt.Sprintf("调用服务失败: %v", err),
 		})
 		return
 	}
+
+	logger.Infof("AddDocument success,code=%d, msg=%s, doc_id=%d", resp.Code, resp.Msg, resp.DocId)
 
 	c.JSON(consts.StatusOK, utils.H{
 		"code":   resp.Code,

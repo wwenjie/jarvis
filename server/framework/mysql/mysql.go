@@ -31,7 +31,7 @@ func InitMySQL() error {
 
 	var err error
 	db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
-		Logger: gormlogger.Default.LogMode(gormlogger.Info),
+		Logger: gormlogger.Default.LogMode(gormlogger.Warn),
 	})
 	if err != nil {
 		return fmt.Errorf("连接MySQL失败: %v", err)
@@ -251,13 +251,16 @@ func (ChatRecord) TableName() string {
 
 // Document 文档表
 type Document struct {
-	DocID     uint64 `gorm:"column:doc_id;primaryKey"`
-	UserID    uint64 `gorm:"column:user_id;not null"`
-	Title     string `gorm:"column:title;size:200;not null"`
-	Status    string `gorm:"column:status;size:20;not null;default:'active'"`
-	Metadata  string `gorm:"column:metadata;type:json"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	DocID          uint64 `gorm:"column:doc_id;primaryKey"`
+	UserID         uint64 `gorm:"column:user_id;not null"`
+	Title          string `gorm:"column:title;size:200;not null"`
+	Status         string `gorm:"column:status;size:20;not null;default:'active'"`
+	Metadata       string `gorm:"column:metadata;type:json"`
+	ParagraphCount uint32 `gorm:"column:paragraph_count;not null;default:0"`
+	SentenceCount  uint32 `gorm:"column:sentence_count;not null;default:0"`
+	Keywords       string `gorm:"column:keywords;type:json"`
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 func (Document) TableName() string {
@@ -377,13 +380,14 @@ func (s *ChatSession) SetMetadata(metadata map[string]interface{}) error {
 
 // DocumentParagraph 文档段落表
 type DocumentParagraph struct {
-	ParagraphID uint64 `gorm:"column:paragraph_id;primaryKey"`
-	DocID       uint64 `gorm:"column:doc_id;not null"`
-	Content     string `gorm:"column:content;type:text;not null"`
-	OrderNum    uint32 `gorm:"column:order_num;not null"`
-	Keywords    string `gorm:"column:keywords;type:json"`
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ParagraphID   uint64 `gorm:"column:paragraph_id;primaryKey"`
+	DocID         uint64 `gorm:"column:doc_id;primaryKey"`
+	Content       string `gorm:"column:content;type:text;not null"`
+	SentenceIDMin uint64 `gorm:"column:sentence_id_min;not null"`
+	SentenceIDMax uint64 `gorm:"column:sentence_id_max;not null"`
+	Keywords      string `gorm:"column:keywords;type:json"`
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 func (DocumentParagraph) TableName() string {
@@ -392,11 +396,10 @@ func (DocumentParagraph) TableName() string {
 
 // DocumentSentence 文档句子表
 type DocumentSentence struct {
+	DocID       uint64 `gorm:"column:doc_id;primaryKey"`
 	SentenceID  uint64 `gorm:"column:sentence_id;primaryKey"`
-	DocID       uint64 `gorm:"column:doc_id;not null"`
 	ParagraphID uint64 `gorm:"column:paragraph_id;not null"`
 	Content     string `gorm:"column:content;type:text;not null"`
-	OrderNum    uint32 `gorm:"column:order_num;not null"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -407,16 +410,15 @@ func (DocumentSentence) TableName() string {
 
 // DocumentChunk 文档块表
 type DocumentChunk struct {
-	ChunkID     uint64 `gorm:"column:chunk_id;primaryKey"`
-	DocID       uint64 `gorm:"column:doc_id;not null"`
-	ParagraphID uint64 `gorm:"column:paragraph_id;not null"`
-	SentenceID1 uint64 `gorm:"column:sentence_id_1;not null"`
-	SentenceID2 uint64 `gorm:"column:sentence_id_2;not null"`
-	SentenceID3 uint64 `gorm:"column:sentence_id_3;not null"`
-	Keywords    string `gorm:"column:keywords;type:json"`
-	Embedding   []byte `gorm:"column:embedding;type:blob"`
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ChunkID       uint64 `gorm:"column:chunk_id;primaryKey"`
+	DocID         uint64 `gorm:"column:doc_id;not null"`
+	ParagraphID   uint64 `gorm:"column:paragraph_id;not null"`
+	SentenceIDMin uint64 `gorm:"column:sentence_id_min;not null"`
+	SentenceIDMax uint64 `gorm:"column:sentence_id_max;not null"`
+	Keywords      string `gorm:"column:keywords;type:json"`
+	Embedding     []byte `gorm:"column:embedding;type:blob"`
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 func (DocumentChunk) TableName() string {
