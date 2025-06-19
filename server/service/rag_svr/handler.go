@@ -10,15 +10,11 @@ import (
 	"server/framework/id_generator"
 	"server/framework/logger"
 	"server/framework/milvus"
-	"server/framework/mongodb"
 	"server/framework/mysql"
 	"server/service/rag_svr/ai"
 	rag_svr "server/service/rag_svr/kitex_gen/rag_svr"
 	"server/service/rag_svr/memory"
 
-	"github.com/neurosnap/sentences"
-	"github.com/yanyiwu/gojieba"
-	"go.mongodb.org/mongo-driver/bson"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -360,217 +356,24 @@ func (s *RagServiceImpl) extractAndStoreMemories(ctx context.Context, userID, se
 func (s *RagServiceImpl) AddDocument(ctx context.Context, req *rag_svr.AddDocumentReq) (resp *rag_svr.AddDocumentRsp, err error) {
 	logger.Infof("添加文档请求: user_id=%d, title=%s", req.UserId, req.Title)
 
-	// 获取新的文档ID
-	docID := id_generator.GetInstance().GetDocumentID()
-	if docID == 0 {
-		logger.Errorf("获取文档ID失败")
+	// 参数校验
+	if req.UserId == 0 || req.Title == "" {
 		return &rag_svr.AddDocumentRsp{
 			Code: 1,
-			Msg:  "获取文档ID失败",
+			Msg:  "用户ID和标题不能为空",
 		}, nil
 	}
 
-	// 开始事务
-	tx := mysql.GetDB().Begin()
-	if tx.Error != nil {
-		logger.Errorf("开启事务失败: %v", tx.Error)
+	docID, err := ai.GetDocumentServiceInstance().AddDocument(ctx, req)
+	if err != nil {
+		logger.Errorf("添加文档失败: %v", err)
 		return &rag_svr.AddDocumentRsp{
 			Code: 1,
-			Msg:  fmt.Sprintf("开启事务失败: %v", tx.Error),
-		}, nil
-	}
-
-	// 创建文档
-	doc := &mysql.Document{
-		DocID:    docID,
-		UserID:   req.UserId,
-		Title:    req.Title,
-		Status:   "active",
-		Metadata: req.Metadata,
-	}
-
-	if err := tx.Create(doc).Error; err != nil {
-		tx.Rollback()
-		logger.Errorf("创建文档失败: %v", err)
-		return &rag_svr.AddDocumentRsp{
-			Code: 1,
-			Msg:  fmt.Sprintf("创建文档失败: %v", err),
-		}, nil
-	}
-
-	// 使用 neurosnap/sentences 切分段落和句子
-	tokenizer := sentences.NewSentenceTokenizer(nil)
-
-	// 按段落分割
-	paragraphs := strings.Split(req.Content, "\n\n")
-	paragraphs = filterEmptyStrings(paragraphs)
-
-	// 初始化结巴分词
-	jieba := gojieba.NewJieba()
-	defer jieba.Free()
-
-	logger.Infof("段落数量: %d", len(paragraphs))
-
-	// 处理每个段落
-	for i, paraContent := range paragraphs {
-		// 获取段落ID
-		paraID := id_generator.GetInstance().GetDocumentParagraphID()
-		if paraID == 0 {
-			tx.Rollback()
-			logger.Errorf("获取段落ID失败")
-			return &rag_svr.AddDocumentRsp{
-				Code: 1,
-				Msg:  "获取段落ID失败",
-			}, nil
-		}
-
-		// 提取段落关键词
-		keywords := jieba.Extract(paraContent, 5)
-		keywordsJSON, _ := json.Marshal(keywords)
-
-		// 创建段落
-		para := &mysql.DocumentParagraph{
-			ParagraphID: paraID,
-			DocID:       docID,
-			Content:     paraContent,
-			OrderNum:    uint32(i + 1),
-			Keywords:    string(keywordsJSON),
-		}
-
-		if err := tx.Create(para).Error; err != nil {
-			tx.Rollback()
-			logger.Errorf("创建段落失败: %v", err)
-			return &rag_svr.AddDocumentRsp{
-				Code: 1,
-				Msg:  fmt.Sprintf("创建段落失败: %v", err),
-			}, nil
-		}
-
-		// 切分句子
-		sentences := tokenizer.Tokenize(paraContent)
-		sentenceIDs := make([]uint64, len(sentences))
-
-		// 保存句子
-		for j, sent := range sentences {
-			// 获取句子ID
-			sentID := id_generator.GetInstance().GetDocumentSentenceID()
-			if sentID == 0 {
-				tx.Rollback()
-				logger.Errorf("获取句子ID失败")
-				return &rag_svr.AddDocumentRsp{
-					Code: 1,
-					Msg:  "获取句子ID失败",
-				}, nil
-			}
-
-			sentenceIDs[j] = sentID
-
-			// 创建句子
-			sent := &mysql.DocumentSentence{
-				SentenceID:  sentID,
-				DocID:       docID,
-				ParagraphID: paraID,
-				Content:     sent.Text,
-				OrderNum:    uint32(j + 1),
-			}
-
-			if err := tx.Create(sent).Error; err != nil {
-				tx.Rollback()
-				logger.Errorf("创建句子失败: %v", err)
-				return &rag_svr.AddDocumentRsp{
-					Code: 1,
-					Msg:  fmt.Sprintf("创建句子失败: %v", err),
-				}, nil
-			}
-
-		}
-
-		// 创建滑动窗口
-		for j := 0; j < len(sentenceIDs)-2; j += 2 {
-			// 获取块ID
-			chunkID := id_generator.GetInstance().GetDocumentChunkID()
-			if chunkID == 0 {
-				tx.Rollback()
-				logger.Errorf("获取块ID失败")
-				return &rag_svr.AddDocumentRsp{
-					Code: 1,
-					Msg:  "获取块ID失败",
-				}, nil
-			}
-
-			// 获取块内容
-			chunkContent := sentences[j].Text + " " + sentences[j+1].Text + " " + sentences[j+2].Text
-
-			// 提取块关键词
-			chunkKeywords := jieba.Extract(chunkContent, 5)
-			chunkKeywordsJSON, _ := json.Marshal(chunkKeywords)
-
-			// 生成块的向量表示
-			embedding, err := ai.GetEmbedding(chunkContent)
-			if err != nil {
-				tx.Rollback()
-				logger.Errorf("生成块向量失败: %v", err)
-				return &rag_svr.AddDocumentRsp{
-					Code: 1,
-					Msg:  fmt.Sprintf("生成块向量失败: %v", err),
-				}, nil
-			}
-
-			// 将 embedding 转换为字节数组
-			embeddingBytes, err := json.Marshal(embedding)
-			if err != nil {
-				tx.Rollback()
-				logger.Errorf("序列化向量失败: %v", err)
-				return &rag_svr.AddDocumentRsp{
-					Code: 1,
-					Msg:  fmt.Sprintf("序列化向量失败: %v", err),
-				}, nil
-			}
-
-			// 创建块记录
-			chunk := &mysql.DocumentChunk{
-				ChunkID:     chunkID,
-				DocID:       docID,
-				ParagraphID: paraID,
-				SentenceID1: sentenceIDs[j],
-				SentenceID2: sentenceIDs[j+1],
-				SentenceID3: sentenceIDs[j+2],
-				Keywords:    string(chunkKeywordsJSON),
-				Embedding:   embeddingBytes,
-			}
-
-			if err := tx.Create(chunk).Error; err != nil {
-				tx.Rollback()
-				logger.Errorf("创建块失败: %v", err)
-				return &rag_svr.AddDocumentRsp{
-					Code: 1,
-					Msg:  fmt.Sprintf("创建块失败: %v", err),
-				}, nil
-			}
-
-			// 将向量存入 Milvus
-			if err := milvus.InsertVector(ctx, milvus.DocumentCollectionName, int64(chunkID), embedding); err != nil {
-				tx.Rollback()
-				logger.Errorf("存储向量到 Milvus 失败: %v", err)
-				return &rag_svr.AddDocumentRsp{
-					Code: 1,
-					Msg:  fmt.Sprintf("存储向量到 Milvus 失败: %v", err),
-				}, nil
-			}
-		}
-	}
-
-	// 提交事务
-	if err := tx.Commit().Error; err != nil {
-		logger.Errorf("提交事务失败: %v", err)
-		return &rag_svr.AddDocumentRsp{
-			Code: 1,
-			Msg:  fmt.Sprintf("提交事务失败: %v", err),
+			Msg:  err.Error(),
 		}, nil
 	}
 
 	logger.Infof("文档添加成功: doc_id=%d", docID)
-
 	return &rag_svr.AddDocumentRsp{
 		Code:  0,
 		Msg:   "success",
@@ -592,98 +395,7 @@ func filterEmptyStrings(strs []string) []string {
 // SearchDocument 实现搜索文档
 func (s *RagServiceImpl) SearchDocument(ctx context.Context, req *rag_svr.SearchDocumentReq) (resp *rag_svr.SearchDocumentRsp, err error) {
 	logger.Infof("搜索文档请求: user_id=%d, query=%s, top_k=%d", req.UserId, req.Query, req.TopK)
-
-	// 生成查询文本的向量表示
-	queryEmbedding, err := ai.GetEmbedding(req.Query)
-	if err != nil {
-		logger.Errorf("生成查询向量失败: %v", err)
-		return &rag_svr.SearchDocumentRsp{
-			Code: 1,
-			Msg:  fmt.Sprintf("生成查询向量失败: %v", err),
-		}, nil
-	}
-
-	// 从 Milvus 搜索相似向量
-	ids, scores, err := milvus.SearchVector(ctx, "document", queryEmbedding, int(req.TopK*2))
-	if err != nil {
-		logger.Errorf("向量搜索失败: %v", err)
-		return &rag_svr.SearchDocumentRsp{
-			Code: 1,
-			Msg:  fmt.Sprintf("向量搜索失败: %v", err),
-		}, nil
-	}
-
-	// 初始化结巴分词
-	jieba := gojieba.NewJieba()
-	defer jieba.Free()
-
-	// 提取查询关键词
-	queryKeywords := jieba.Extract(req.Query, 5)
-	queryKeywordsStr := strings.Join(queryKeywords, " ")
-
-	// 构建关键词搜索条件
-	keywordCondition := "MATCH(keywords) AGAINST(? IN BOOLEAN MODE)"
-
-	// 获取相关窗口的详细信息
-	var chunks []mysql.DocumentChunk
-	if err := mysql.GetDB().Where("chunk_id IN ? AND "+keywordCondition,
-		ids, queryKeywordsStr).Find(&chunks).Error; err != nil {
-		logger.Errorf("获取文档块详情失败: %v", err)
-		return &rag_svr.SearchDocumentRsp{
-			Code: 1,
-			Msg:  fmt.Sprintf("获取文档块详情失败: %v", err),
-		}, nil
-	}
-
-	// 获取相关文档
-	var documents []*rag_svr.Document
-
-	for _, chunk := range chunks {
-		// 获取文档信息
-		var doc mysql.Document
-		if err := mysql.GetDB().Table("document").First(&doc, chunk.DocID).Error; err != nil {
-			logger.Errorf("获取文档信息失败: %v", err)
-			continue
-		}
-
-		// 获取块中的句子
-		var sentences []mysql.DocumentSentence
-		if err := mysql.GetDB().Table("document_sentence").Where("sentence_id IN ?",
-			[]uint64{chunk.SentenceID1, chunk.SentenceID2, chunk.SentenceID3}).
-			Find(&sentences).Error; err != nil {
-			logger.Errorf("获取句子信息失败: %v", err)
-			continue
-		}
-
-		// 构建文档内容
-		content := ""
-		for _, sent := range sentences {
-			content += sent.Content + " "
-		}
-
-		// 计算相关性分数
-		score := calculateRelevanceScore(chunk, queryKeywords)
-
-		documents = append(documents, &rag_svr.Document{
-			DocId:      doc.DocID,
-			UserId:     doc.UserID,
-			Title:      doc.Title,
-			Content:    content,
-			Metadata:   doc.Metadata,
-			CreateTime: uint64(doc.CreatedAt.Unix()),
-			UpdateTime: uint64(doc.UpdatedAt.Unix()),
-		})
-		scores = append(scores, score)
-	}
-
-	logger.Infof("文档搜索完成: 找到%d个结果", len(documents))
-
-	return &rag_svr.SearchDocumentRsp{
-		Code:      0,
-		Msg:       "success",
-		Documents: documents,
-		Scores:    scores,
-	}, nil
+	return ai.GetDocumentServiceInstance().SearchDocument(ctx, req)
 }
 
 // calculateRelevanceScore 计算相关性分数
@@ -1004,54 +716,10 @@ func (s *RagServiceImpl) GetSession(ctx context.Context, req *rag_svr.GetSession
 	}, nil
 }
 
-// DeleteDocument implements the RagServiceImpl interface.
+// DeleteDocument 实现删除文档
 func (s *RagServiceImpl) DeleteDocument(ctx context.Context, req *rag_svr.DeleteDocumentReq) (resp *rag_svr.DeleteDocumentRsp, err error) {
 	logger.Infof("删除文档请求: doc_id=%d, user_id=%d", req.DocId, req.UserId)
-
-	// 获取文档信息
-	var doc mysql.Document
-	if err := mysql.GetDB().Table("document").Model(&mysql.Document{}).First(&doc, req.DocId).Error; err != nil {
-		logger.Errorf("获取文档信息失败: %v", err)
-		return &rag_svr.DeleteDocumentRsp{
-			Code: 1,
-			Msg:  fmt.Sprintf("获取文档信息失败: %v", err),
-		}, nil
-	}
-
-	// 验证用户权限
-	if doc.UserID != req.UserId {
-		logger.Errorf("用户无权限删除该文档: user_id=%d, doc_user_id=%d", req.UserId, doc.UserID)
-		return &rag_svr.DeleteDocumentRsp{
-			Code: 1,
-			Msg:  "无权限删除该文档",
-		}, nil
-	}
-
-	// 从 MySQL 中删除文档
-	if err := mysql.GetDB().Table("document").Delete(&doc).Error; err != nil {
-		logger.Errorf("从 MySQL 删除文档失败: %v", err)
-		return &rag_svr.DeleteDocumentRsp{
-			Code: 1,
-			Msg:  fmt.Sprintf("删除文档失败: %v", err),
-		}, nil
-	}
-
-	// 从 MongoDB 中删除文档
-	filter := bson.M{
-		"doc_id":  req.DocId,
-		"user_id": req.UserId,
-	}
-	if _, err := mongodb.DeleteOne(ctx, "document", filter); err != nil {
-		logger.Errorf("从 MongoDB 删除文档失败: %v", err)
-		// 继续执行，不返回错误，因为 MySQL 中已经删除成功
-	}
-
-	logger.Infof("文档删除成功: doc_id=%d", req.DocId)
-
-	return &rag_svr.DeleteDocumentRsp{
-		Code: 0,
-		Msg:  "success",
-	}, nil
+	return ai.GetDocumentServiceInstance().DeleteDocument(ctx, req)
 }
 
 // AddChatRecord 实现添加聊天记录
