@@ -556,7 +556,7 @@ async def upload_document(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="暂不支持txt以外的文件")
     
     # 调用 API 网关添加文档
-    async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL, timeout=30.0) as client:
+    async with httpx.AsyncClient(base_url=API_GATEWAY_BASE_URL, timeout=60.0) as client:
         response = await client.post(
             "/document/add",
             json={

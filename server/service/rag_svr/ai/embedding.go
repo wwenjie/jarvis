@@ -57,6 +57,17 @@ func GetEmbedding(text string) ([]float32, error) {
 		return nil, fmt.Errorf("全局配置未初始化")
 	}
 
+	// 检查 embedding 模型配置
+	if cfg.AI.EmbeddingModel.APIKey == "" {
+		return nil, fmt.Errorf("embedding 模型 API Key 未配置")
+	}
+	if cfg.AI.EmbeddingModel.ModelName == "" {
+		return nil, fmt.Errorf("embedding 模型名称未配置")
+	}
+	if cfg.AI.EmbeddingModel.BaseURL == "" {
+		return nil, fmt.Errorf("embedding 模型 Base URL 未配置")
+	}
+
 	// 获取并发令牌
 	requestSemaphore <- struct{}{}
 	defer func() { <-requestSemaphore }()

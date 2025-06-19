@@ -119,6 +119,8 @@ func (m *MemoryManager) SearchMemories(ctx context.Context, query string, limit 
 		return nil, fmt.Errorf("搜索向量失败: %v", err)
 	}
 
+	logger.Infof("search memories from milvus, ids=%v,scores=%v", ids, scores)
+
 	if len(ids) == 0 {
 		return []*Memory{}, nil
 	}
@@ -138,6 +140,12 @@ func (m *MemoryManager) SearchMemories(ctx context.Context, query string, limit 
 	if err != nil {
 		return nil, fmt.Errorf("获取记忆详情失败: %v", err)
 	}
+
+	db_ids := make([]uint64, len(memories))
+	for i, memory := range memories {
+		db_ids[i] = memory.ID
+	}
+	logger.Infof("get memories from db, memory_ids=%v", db_ids)
 
 	// 转换为 Memory 结构
 	result := make([]*Memory, len(memories))
