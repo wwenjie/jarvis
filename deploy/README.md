@@ -28,22 +28,37 @@ mysql单例。
 
 ## 环境变量配置
 
-在启动服务之前，请确保设置以下环境变量配置到~/.bashrc：
+在启动服务之前，请按照以下步骤配置环境变量：
+
+### 1. 创建 .env 文件
+
+在 `deploy` 目录下将 `.env.example` 复制为 `.env` 文件：
 
 ```bash
-# 阿里云API Key 和 模型配置
-export DASHSCOPE_API_KEY="your_dashscope_api_key_here"
-export MODEL_NAME="qwen-turbo"
-export TEMPERATURE="0.7"
-# embedding API Key
-export EMBEDDING_API_KEY="your_embedding_api_key_here"
-# 博查 API Key
-export BOCHA_API_KEY="your_bocha_api_key_here"
-# 心知天气 API Key
-export SENIVERSE_WEATHER_API_KEY="your_weather_api_key_here"
+cd deploy
+cp .env.example .env
 ```
 
-重新加载配置
+然后将 `.env` 文件中的占位符替换为你的实际 API Key：
+
+### 2. 启动服务
+
+配置完成后，在 `deploy` 目录下启动服务：
+
 ```bash
-source ~/.bashrc
+# 启动所有服务
+docker-compose -f service-docker-compose.yml up -d
+
+# 查看服务状态
+docker-compose -f service-docker-compose.yml ps
+
+# 查看服务日志
+docker-compose -f service-docker-compose.yml logs -f
+```
+
+### 3. 停止服务
+
+```bash
+# 停止所有服务
+docker-compose -f service-docker-compose.yml down
 ```
