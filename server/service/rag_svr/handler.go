@@ -786,7 +786,7 @@ func (s *RagServiceImpl) GetChatRecords(ctx context.Context, req *rag_svr.GetCha
 
 	// 分页
 	offset := int((req.Page - 1) * req.PageSize)
-	if err := query.Order("created_at DESC").
+	if err := query.Order("created_at ASC").
 		Offset(offset).
 		Limit(int(req.PageSize)).
 		Find(&records).Error; err != nil {

@@ -1,0 +1,62 @@
+services:
+  rag_svr:
+    build:
+      context: ..
+      dockerfile: server/service/rag_svr/Dockerfile
+    container_name: rag_svr
+    ports:
+      - "8888:8888"
+    volumes:
+      - /app/logs:/app/logs
+    env_file:
+      - .env
+    environment:
+      - TZ=Asia/Shanghai
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      - EMBEDDING_API_KEY=${EMBEDDING_API_KEY}
+      - MODEL_NAME=${MODEL_NAME}
+      - TEMPERATURE=${TEMPERATURE}
+      - SKIP_TLS_VERIFY=true
+    restart: unless-stopped
+    network_mode: host
+
+  api_service:
+    build:
+      context: ..
+      dockerfile: server/api_service/Dockerfile
+    container_name: api_service
+    ports:
+      - "8081:8081"
+    volumes:
+      - /app/logs:/app/logs
+    env_file:
+      - .env
+    environment:
+      - TZ=Asia/Shanghai
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      - EMBEDDING_API_KEY=${EMBEDDING_API_KEY}
+      - MODEL_NAME=${MODEL_NAME}
+      - TEMPERATURE=${TEMPERATURE}
+    restart: always
+    network_mode: host
+
+  api_gateway:
+    build:
+      context: ..
+      dockerfile: web/Dockerfile
+    container_name: api_gateway
+    ports:
+      - "8080:8080"
+    volumes:
+      - /app/logs:/app/logs
+      - ../web/static:/app/static
+    env_file:
+      - .env
+    environment:
+      - TZ=Asia/Shanghai
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      - BOCHA_API_KEY=${BOCHA_API_KEY}
+    restart: unless-stopped
+    depends_on:
+      - api_service
+    network_mode: host

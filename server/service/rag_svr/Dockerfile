@@ -27,6 +27,16 @@ FROM ubuntu:22.04
 
 WORKDIR /app
 
+# 安装CA证书库和时区设置
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    tzdata \
+    && rm -rf /var/lib/apt/lists/*
+
+# 设置时区
+ENV TZ=Asia/Shanghai
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 # 只复制编译好的二进制和启动脚本，不带源码
 COPY --from=builder /app/output/bin/rag_svr /app/bin/rag_svr
 COPY --from=builder /app/output/bootstrap.sh /app/bootstrap.sh

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"crypto/tls"
 	"server/framework/config"
 	"server/framework/redis"
 )
@@ -99,7 +100,14 @@ func GetEmbedding(text string) ([]float32, error) {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cfg.AI.EmbeddingModel.APIKey))
 
 		// 发送请求
-		client := &http.Client{Timeout: requestTimeout}
+		client := &http.Client{
+			Timeout: requestTimeout,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true, // 跳过TLS证书验证
+				},
+			},
+		}
 		resp, err := client.Do(req)
 		if err != nil {
 			lastErr = fmt.Errorf("发送请求失败: %v", err)
@@ -233,7 +241,14 @@ func getEmbeddingBatch(texts []string) ([][]float32, error) {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cfg.AI.EmbeddingModel.APIKey))
 
 		// 发送请求
-		client := &http.Client{Timeout: requestTimeout}
+		client := &http.Client{
+			Timeout: requestTimeout,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true, // 跳过TLS证书验证
+				},
+			},
+		}
 		resp, err := client.Do(req)
 		if err != nil {
 			lastErr = fmt.Errorf("发送请求失败: %v", err)

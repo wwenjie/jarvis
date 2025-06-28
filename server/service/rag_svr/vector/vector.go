@@ -3,14 +3,18 @@ package vector
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"time"
 
 	"server/framework/config"
 	"server/framework/redis"
+
+	"github.com/bytedance/gopkg/util/logger"
 )
 
 const (
@@ -38,6 +42,7 @@ func GetEmbedding(text string) ([]float32, error) {
 	if cached, err := redis.Get(ctx, cacheKey); err == nil {
 		var vector []float32
 		if err := json.Unmarshal([]byte(cached), &vector); err == nil {
+			logger.Infof("get embedding from cache, text=%s", text)
 			return vector, nil
 		}
 	}
@@ -45,6 +50,7 @@ func GetEmbedding(text string) ([]float32, error) {
 	// 获取配置
 	cfg := config.GlobalConfig
 	if cfg == nil {
+		logger.Errorf("全局配置未初始化")
 		return nil, fmt.Errorf("全局配置未初始化")
 	}
 
@@ -65,12 +71,14 @@ func GetEmbedding(text string) ([]float32, error) {
 		}
 		jsonData, err := json.Marshal(reqBody)
 		if err != nil {
+			logger.Errorf("序列化请求失败: %v", err)
 			return nil, fmt.Errorf("序列化请求失败: %v", err)
 		}
 
 		// 创建请求
 		req, err := http.NewRequest("POST", cfg.AI.EmbeddingModel.BaseURL+"/embeddings", bytes.NewBuffer(jsonData))
 		if err != nil {
+			logger.Errorf("创建请求失败: %v", err)
 			return nil, fmt.Errorf("创建请求失败: %v", err)
 		}
 
@@ -80,8 +88,19 @@ func GetEmbedding(text string) ([]float32, error) {
 
 		// 发送请求
 		client := &http.Client{Timeout: requestTimeout}
+
+		// 如果设置了跳过TLS验证的环境变量，则跳过证书验证
+		if os.Getenv("SKIP_TLS_VERIFY") == "true" {
+			client.Transport = &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			}
+		}
+
 		resp, err := client.Do(req)
 		if err != nil {
+			logger.Errorf("发送请求失败: %v", err)
 			lastErr = fmt.Errorf("发送请求失败: %v", err)
 			continue
 		}
@@ -90,12 +109,14 @@ func GetEmbedding(text string) ([]float32, error) {
 		body, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
+			logger.Errorf("读取响应失败: %v", err)
 			lastErr = fmt.Errorf("读取响应失败: %v", err)
 			continue
 		}
 
 		// 检查响应状态码
 		if resp.StatusCode != http.StatusOK {
+			logger.Errorf("API请求失败，状态码: %d, 响应: %s", resp.StatusCode, string(body))
 			lastErr = fmt.Errorf("API请求失败，状态码: %d, 响应: %s", resp.StatusCode, string(body))
 			continue
 		}
@@ -107,11 +128,13 @@ func GetEmbedding(text string) ([]float32, error) {
 			} `json:"data"`
 		}
 		if err := json.Unmarshal(body, &result); err != nil {
+			logger.Errorf("解析响应失败: %v", err)
 			lastErr = fmt.Errorf("解析响应失败: %v", err)
 			continue
 		}
 
 		if len(result.Data) == 0 {
+			logger.Errorf("未获取到向量表示")
 			lastErr = fmt.Errorf("未获取到向量表示")
 			continue
 		}
@@ -126,6 +149,7 @@ func GetEmbedding(text string) ([]float32, error) {
 		return vector, nil
 	}
 
+	logger.Errorf("重试%d次后仍然失败: %v", maxRetries, lastErr)
 	return nil, fmt.Errorf("重试%d次后仍然失败: %v", maxRetries, lastErr)
 }
 
@@ -214,6 +238,16 @@ func getEmbeddingBatch(texts []string) ([][]float32, error) {
 
 		// 发送请求
 		client := &http.Client{Timeout: requestTimeout}
+
+		// 如果设置了跳过TLS验证的环境变量，则跳过证书验证
+		if os.Getenv("SKIP_TLS_VERIFY") == "true" {
+			client.Transport = &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			}
+		}
+
 		resp, err := client.Do(req)
 		if err != nil {
 			lastErr = fmt.Errorf("发送请求失败: %v", err)
