@@ -626,7 +626,7 @@
         async testServerConnection() {
           try {
             console.log('测试服务器连接...');
-            const response = await fetch('http://106.55.197.49:8080/health');
+            const response = await fetch('http://119.91.204.143:8080/health');
             
             if (response.ok) {
               console.log('服务器连接正常:', await response.json());
@@ -754,7 +754,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
 
   <script>
-    window.SERVER_BASE_URL = 'http://106.55.197.49:8080'; // 移除末尾的斜杠
+    window.SERVER_BASE_URL = 'http://119.91.204.143:8080'; // 移除末尾的斜杠
   </script>
 </body>
 </html>
