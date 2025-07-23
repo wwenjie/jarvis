@@ -40,6 +40,21 @@ services:
     restart: always
     network_mode: host
 
+  flower_infer:
+    build:
+      context: ..
+      dockerfile: py_server/Dockerfile
+    container_name: flower_infer
+    ports:
+      - "8082:8082"
+    volumes:
+      - ../models:/app/models
+      - /app/logs:/app/logs
+    environment:
+      - TZ=Asia/Shanghai
+    restart: unless-stopped
+    network_mode: host
+
   api_gateway:
     build:
       context: ..
