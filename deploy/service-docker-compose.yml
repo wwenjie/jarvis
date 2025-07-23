@@ -19,6 +19,8 @@ services:
       - SKIP_TLS_VERIFY=true
     restart: unless-stopped
     network_mode: host
+    cpus: 1.0
+    mem_limit: 2g
 
   api_service:
     build:
@@ -39,6 +41,8 @@ services:
       - TEMPERATURE=${TEMPERATURE}
     restart: always
     network_mode: host
+    cpus: 1.0
+    mem_limit: 2g
 
   flower_infer:
     build:
@@ -54,6 +58,8 @@ services:
       - TZ=Asia/Shanghai
     restart: unless-stopped
     network_mode: host
+    cpus: 1.0
+    mem_limit: 2g
 
   api_gateway:
     build:
@@ -75,3 +81,5 @@ services:
     depends_on:
       - api_service
     network_mode: host
+    cpus: 1.0
+    mem_limit: 2g
