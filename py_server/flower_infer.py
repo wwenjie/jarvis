@@ -8,11 +8,11 @@ import io
 app = FastAPI()
 
 # 加载ONNX模型
-onnx_model_path = '../models/efficientnet_b1_onnx_simplified.onnx'
+onnx_model_path = 'models/efficientnet_b1_onnx_simplified.onnx'
 session = ort.InferenceSession(onnx_model_path)
 
 # EfficientNet-B1官方输入尺寸
-IMG_SIZE = 240
+IMG_SIZE = 224
 
 # 预处理函数
 def preprocess_image(image_bytes):

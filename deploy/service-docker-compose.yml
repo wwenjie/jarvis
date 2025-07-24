@@ -4,8 +4,8 @@ services:
       context: ..
       dockerfile: server/service/rag_svr/Dockerfile
     container_name: rag_svr
-    ports:
-      - "8888:8888"
+    # ports:
+    #   - "8888:8888"
     volumes:
       - /app/logs:/app/logs
     env_file:
@@ -27,8 +27,8 @@ services:
       context: ..
       dockerfile: server/api_service/Dockerfile
     container_name: api_service
-    ports:
-      - "8081:8081"
+    # ports:
+    #   - "8081:8081"
     volumes:
       - /app/logs:/app/logs
     env_file:
@@ -49,8 +49,8 @@ services:
       context: ..
       dockerfile: py_server/Dockerfile
     container_name: flower_infer
-    ports:
-      - "8082:8082"
+    # ports:
+    #   - "8082:8082"
     volumes:
       - ../models:/app/models
       - /app/logs:/app/logs
@@ -66,8 +66,8 @@ services:
       context: ..
       dockerfile: web/Dockerfile
     container_name: api_gateway
-    ports:
-      - "8080:8080"
+    # ports:
+    #   - "8080:8080"
     volumes:
       - /app/logs:/app/logs
       - ../web/static:/app/static
