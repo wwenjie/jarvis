@@ -1429,6 +1429,23 @@ async def delete_session(session_id: str):
         logger.error(f"删除会话失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"删除会话失败: {str(e)}")
 
+# 花朵识别API
+@app.post("/api/flower_infer")
+async def flower_infer(file: UploadFile = File(...)):
+    try:
+        # 读取图片内容
+        image_bytes = await file.read()
+        # 转发到 flower_infer.py 的 /infer 接口
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            files = {'file': (file.filename, image_bytes, file.content_type)}
+            response = await client.post("http://10.1.20.9:8082/infer", files=files)
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail=f"花朵识别服务异常: {response.text}")
+            return response.json()
+    except Exception as e:
+        logger.error(f"花朵识别接口异常: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"花朵识别接口异常: {str(e)}")
+
 # 健康检查接口
 @app.get("/health")
 def health_check():
