@@ -16,13 +16,17 @@ IMG_SIZE = 224
 
 # 预处理函数
 def preprocess_image(image_bytes):
+    # 1 字节流转 PIL 图像
     image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+    # 2 尺寸调整
     image = image.resize((IMG_SIZE, IMG_SIZE))
+    # 3 归一化到 [0,1]
     img_array = np.array(image).astype(np.float32) / 255.0
-    # EfficientNet预处理: 标准化
+    # 4 EfficientNet预处理: 标准化
     mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
     std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
     img_array = (img_array - mean) / std
+    # 5 维度转换: HWC -> CHW -> NCHW
     img_array = np.transpose(img_array, (2, 0, 1))  # HWC -> CHW
     img_array = np.expand_dims(img_array, axis=0)   # NCHW
     return img_array
@@ -55,10 +59,14 @@ class_names = [
 @app.post('/infer')
 async def infer(file: UploadFile = File(...)):
     try:
+        # 异步读文件
         image_bytes = await file.read()
+        # 预处理图像
         input_tensor = preprocess_image(image_bytes)
+        # 模型推理
         input_name = session.get_inputs()[0].name
         outputs = session.run(None, {input_name: input_tensor})
+        # 获取预测结果
         pred = np.argmax(outputs[0], axis=1).tolist()
         class_id = pred[0]
         class_name = class_names[class_id] if 0 <= class_id < len(class_names) else "unknown"
