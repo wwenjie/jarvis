@@ -9,9 +9,8 @@ Jarvis是一个智能AI助手系统，具备会话管理、简单的长期记忆
 - **长期记忆**：记住与用户对话中的重要信息并持久化存储
 
 ### 2. 知识库管理
-- **文档上传**：暂时只支持TXT格式文档
+- **文档上传**：目前只支持TXT格式文档
 - **智能检索**：基于向量相似度的文档搜索
-- **知识关联**：建立文档间的关联关系
 
 ### 3. 扩展功能
 - **天气查询**：实时天气、24小时预报、15天预报
@@ -19,7 +18,7 @@ Jarvis是一个智能AI助手系统，具备会话管理、简单的长期记忆
 - **会话管理**：多会话支持，历史聊天记录保存
 
 ### 4. 图片花朵识别
-- **花朵识别**：支持识别花朵图片，使用基于EfficientNet-B1并在Flower-102数据集上训练的模型，识别102种花朵类别
+- **花朵识别**：支持识别图片花朵类别，所用模型基于EfficientNet-B1并在Flower-102数据集上训练，支持识别102种花朵的模型
 
 ## 🏗️ 系统架构
 
@@ -39,7 +38,8 @@ Jarvis是一个智能AI助手系统，具备会话管理、简单的长期记忆
 - **向量数据库**：Milvus
 - **缓存**：Redis
 - **服务发现**：Etcd 
-- **AI模型**：qwen-turbo
+- **AI语言模型**：Qwen-turbo
+- **花朵识别模型**：EfficientNet-B1（基于Flower-102数据集训练，本地ONNX部署）
 
 ## 🔧 核心组件
 
@@ -98,8 +98,9 @@ Jarvis是一个智能AI助手系统，具备会话管理、简单的长期记忆
 - 临时数据
 
 ### Milvus
-- 文档向量存储和检索
 - 记忆向量存储和检索
+- 文档语句向量存储和检索
+
 
 ## 🚀 服务部署
 
@@ -173,6 +174,9 @@ docker-compose -f service-docker-compose.yml logs -f
 ```bash
 # 查看api_gateway日志
 docker-compose -f service-docker-compose.yml logs api_gateway
+
+# 查看flower_infer日志
+docker-compose -f service-docker-compose.yml logs flower_infer
 
 # 查看api_service日志
 docker-compose -f service-docker-compose.yml logs api_service
