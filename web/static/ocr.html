@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>图片文字识别与翻译</title>
+  <link href="./css/bootstrap.min.css" rel="stylesheet">
+  <script src="./js/vue.global.prod.js"></script>
+  <script src="./js/axios.min.js"></script>
+  <style>
+    .preview-img {
+      max-width: 300px;
+      max-height: 300px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      border: 1px solid #eee;
+    }
+    .ocr-table {
+      width: 100%;
+      margin-top: 20px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    .ocr-table th, .ocr-table td {
+      padding: 8px 12px;
+      border: 1px solid #eee;
+      text-align: left;
+      font-size: 15px;
+    }
+    .ocr-table th {
+      background: #f5f5f5;
+    }
+  </style>
+  <script>
+    window.SERVER_BASE_URL = 'http://119.91.204.143:8080';
+  </script>
+</head>
+<body>
+  <div id="app" class="container mt-5">
+    <h1 class="mb-4">图片文字识别与翻译</h1>
+    <div class="alert alert-info">上传图片，自动识别图片中的文字，如果有英文可翻译为中文。</div>
+    <nav class="mb-4">
+      <a href="chat.html" class="btn btn-primary me-2">前往对话页面</a>
+      <a href="documents.html" class="btn btn-secondary me-2">前往文档管理</a>
+      <a href="flower.html" class="btn btn-success">花朵识别</a>
+    </nav>
+    <div class="card">
+      <div class="card-header">上传图片进行文字识别</div>
+      <div class="card-body">
+        <div class="mb-3">
+          <input type="file" class="form-control" accept="image/*" @change="onFileChange">
+        </div>
+        <div v-if="previewUrl" class="mb-3">
+          <img :src="previewUrl" class="preview-img" alt="预览">
+        </div>
+        <button class="btn btn-success" :disabled="!selectedFile || loading" @click="uploadImage">识别</button>
+        <div v-if="loading" class="mt-3 text-info">识别中，请稍候...</div>
+        <div v-if="error" class="mt-3 alert alert-danger">{{ error }}</div>
+        <div v-if="result && result.success" class="mt-3">
+          <div class="alert alert-success">共识别到 <b>{{ result.total_texts }}</b> 个文本区域：</div>
+          <table class="ocr-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>原文</th>
+                <th>翻译</th>
+                <th>置信度</th>
+                <th>位置</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(item, idx) in result.results" :key="idx">
+                <td>{{ idx + 1 }}</td>
+                <td>{{ item.text }}</td>
+                <td>{{ item.translation }}</td>
+                <td>{{ item.confidence ? item.confidence.toFixed(2) : '' }}</td>
+                <td>{{ item.bbox ? JSON.stringify(item.bbox) : '' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const { createApp } = Vue;
+    axios.defaults.baseURL = window.SERVER_BASE_URL;
+    createApp({
+      data() {
+        return {
+          selectedFile: null,
+          previewUrl: '',
+          result: null,
+          error: '',
+          loading: false
+        };
+      },
+      methods: {
+        onFileChange(e) {
+          const file = e.target.files[0];
+          this.selectedFile = file;
+          this.result = null;
+          this.error = '';
+          if (file) {
+            this.previewUrl = URL.createObjectURL(file);
+          } else {
+            this.previewUrl = '';
+          }
+        },
+        async uploadImage() {
+          if (!this.selectedFile) return;
+          this.loading = true;
+          this.result = null;
+          this.error = '';
+          const formData = new FormData();
+          formData.append('file', this.selectedFile);
+          try {
+            const response = await axios.post('/api/ocr', formData, {
+              headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            this.result = response.data;
+          } catch (err) {
+            this.error = err.response?.data?.detail || '识别失败';
+          } finally {
+            this.loading = false;
+          }
+        }
+      }
+    }).mount('#app');
+  </script>
+  <script src="./js/bootstrap.bundle.min.js"></script>
+</body>
+</html> 

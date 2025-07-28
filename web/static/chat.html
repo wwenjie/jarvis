@@ -320,6 +320,7 @@
         </div>
         <a href="documents.html" class="btn btn-outline-light mt-3 w-100">文档管理</a>
         <a href="flower.html" class="btn btn-outline-success mt-2 w-100">花朵识别</a>
+        <a href="ocr.html" class="btn btn-outline-warning mt-2 w-100">图片文字识别与翻译</a>
         <div class="form-check form-switch mt-3 text-white">
           <input class="form-check-input" type="checkbox" id="autoSpeechSwitch" v-model="autoSpeech">
           <label class="form-check-label" for="autoSpeechSwitch">自动语音播放</label>
@@ -334,7 +335,8 @@
     <div class="chat-container" ref="chatContainer">
       <nav class="mb-4">
         <a href="documents.html" class="btn btn-primary me-2">前往文档管理</a>
-        <a href="flower.html" class="btn btn-success">花朵识别</a>
+        <a href="flower.html" class="btn btn-success me-2">花朵识别</a>
+        <a href="ocr.html" class="btn btn-warning">图片文字识别与翻译</a>
       </nav>
       <div v-for="(msg, index) in messages" :key="index" class="message" :class="{ user: msg.role === 'user', bot: msg.role === 'bot' }">
         <div class="message-content">

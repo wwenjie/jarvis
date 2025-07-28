@@ -20,6 +20,11 @@ Jarvis是一个智能AI助手系统，具备会话管理、简单的长期记忆
 ### 4. 图片花朵识别
 - **花朵识别**：支持识别图片花朵类别，所用模型基于EfficientNet-B1并在Flower-102数据集上训练，支持识别102种花朵的模型
 
+### 5. 文字识别与翻译
+- **文字识别**：基于本地部署的EasyOCR模型，支持简体中文和英文的文字识别
+- **自动翻译**：识别到的英文文字自动翻译为中文
+- **识别信息**：提供识别置信度和文字位置信息
+
 ## 🏗️ 系统架构
 
 ### 调用链路
@@ -52,7 +57,6 @@ Jarvis是一个智能AI助手系统，具备会话管理、简单的长期记忆
   - 大模型function calling处理
   - 联网搜索
   - 天气查询
-  - 花朵图片识别（转发图片到flower_infer服务，返回识别结果）
 
 ### 2. API服务 (api_service)
 - **功能**：业务逻辑处理，HTTP API提供
@@ -77,6 +81,13 @@ Jarvis是一个智能AI助手系统，具备会话管理、简单的长期记忆
 - **模型说明**：本服务使用EfficientNet-B1作为基础模型，结合Flower-102数据集进行迁移学习训练，最终导出ONNX模型用于高效推理。
 - **接口**：
   - /infer：上传图片，返回花朵类别及ID
+
+### 5. OCR文字识别服务 (ocr_svr.py)
+- **功能**：图片文字识别与翻译，支持多语言文字识别
+- **技术**：FastAPI + EasyOCR + OpenAI翻译
+- **模型说明**：使用EasyOCR开源模型进行文字识别，支持多种语言。识别到的英文文字通过OpenAI API自动翻译为中文。
+- **接口**：
+  - /ocr：上传图片，返回识别结果（包含原文、翻译、置信度、边界框坐标）
 
 ## 🗄️ 数据存储
 
@@ -177,6 +188,9 @@ docker-compose -f service-docker-compose.yml logs api_gateway
 
 # 查看flower_infer日志
 docker-compose -f service-docker-compose.yml logs flower_infer
+
+# 查看ocr_svr日志
+docker-compose -f service-docker-compose.yml logs ocr_svr
 
 # 查看api_service日志
 docker-compose -f service-docker-compose.yml logs api_service
