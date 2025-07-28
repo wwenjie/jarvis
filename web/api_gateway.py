@@ -1446,6 +1446,128 @@ async def flower_infer(file: UploadFile = File(...)):
         logger.error(f"花朵识别接口异常: {str(e)}")
         raise HTTPException(status_code=500, detail=f"花朵识别接口异常: {str(e)}")
 
+# OCR文字识别API
+@app.post("/api/ocr")
+async def ocr_recognize(file: UploadFile = File(...)):
+    try:
+        logger.info(f"开始OCR文字识别处理: {file.filename}")
+        
+        # 检查文件类型
+        if not file.content_type or not file.content_type.startswith('image/'):
+            raise HTTPException(status_code=400, detail="只支持图片文件")
+        
+        # 读取图片内容
+        image_bytes = await file.read()
+        logger.info(f"图片读取完成，大小: {len(image_bytes)} bytes")
+        
+        # 转发到 ocr_svr.py 的 /ocr 接口
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            files = {'file': (file.filename, image_bytes, file.content_type)}
+            response = await client.post("http://10.1.20.9:8083/ocr", files=files)
+            
+            if response.status_code != 200:
+                logger.error(f"OCR服务响应异常: {response.status_code} - {response.text}")
+                raise HTTPException(status_code=500, detail=f"OCR文字识别服务异常: {response.text}")
+            
+            result = response.json()
+            logger.info(f"OCR识别完成，识别到 {result.get('total_texts', 0)} 个文本区域")
+            
+            # 处理翻译
+            if result.get("success") and result.get("results"):
+                # 将所有识别到的文本合并，发送给翻译API
+                all_texts = [item.get("text", "") for item in result["results"] if item.get("text")]
+                combined_text = "\n".join(all_texts)
+                
+                if combined_text:
+                    try:
+                        # 调用翻译API翻译所有文本
+                        translation_result = await translate_ocr_results(combined_text, result["results"])
+                        logger.info(f"翻译完成，共翻译 {len(result['results'])} 个文本区域")
+                        
+                        # 更新结果
+                        result["results"] = translation_result
+                    except Exception as e:
+                        logger.warning(f"翻译失败: {str(e)}")
+                        # 翻译失败时，为每个结果添加空的translation字段
+                        for item in result["results"]:
+                            item["translation"] = ""
+                else:
+                    # 没有识别到文本时，为每个结果添加空的translation字段
+                    for item in result["results"]:
+                        item["translation"] = ""
+            
+            return result
+            
+    except HTTPException:
+        # 重新抛出HTTP异常
+        raise
+    except Exception as e:
+        logger.error(f"OCR文字识别接口异常: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"OCR文字识别接口异常: {str(e)}")
+
+async def translate_ocr_results(combined_text: str, ocr_results: List[Dict]) -> List[Dict]:
+    """
+    将EasyOCR识别的文本结果发送给翻译API进行翻译。
+    """
+    try:
+        # 使用OpenAI API进行翻译
+        response = openai_client.chat.completions.create(
+            model="qwen-turbo",
+            messages=[
+                {
+                    "role": "system",
+                    "content": """你是一个专业的翻译助手。请将输入的英文文本翻译成中文，保持原文的意思和语气。
+
+EasyOCR识别结果格式说明：
+- 每个文本区域包含：text（识别的文本）、confidence（置信度）、bbox（边界框坐标）
+- 请将英文文本翻译成中文，非英文文本保持原样
+- 返回格式：每行一个翻译结果，格式为"原文 -> 翻译"
+- 如果原文不是英文，则翻译为空字符串"""
+                },
+                {
+                    "role": "user",
+                    "content": f"""请翻译以下EasyOCR识别的文本：
+
+{combined_text}
+
+请按行返回翻译结果，格式为"原文 -> 翻译"，如果不是英文则翻译为空。"""
+                }
+            ],
+            max_tokens=500,
+            temperature=0.3
+        )
+        
+        translation_text = response.choices[0].message.content.strip()
+        logger.info(f"翻译API返回结果: {translation_text}")
+        
+        # 解析翻译结果并匹配到原始OCR结果
+        translated_results = []
+        translation_lines = translation_text.split('\n')
+        
+        for item in ocr_results:
+            original_text = item.get("text", "")
+            translation = ""
+            
+            # 在翻译结果中查找对应的翻译
+            for line in translation_lines:
+                if line.startswith(f"{original_text} ->"):
+                    translation = line.split("->", 1)[1].strip()
+                    break
+                elif line.startswith(f'"{original_text}" ->'):
+                    translation = line.split("->", 1)[1].strip()
+                    break
+            
+            # 创建新的结果项
+            translated_item = item.copy()
+            translated_item["translation"] = translation
+            translated_results.append(translated_item)
+        
+        return translated_results
+        
+    except Exception as e:
+        logger.error(f"EasyOCR翻译API调用失败: {str(e)}")
+        raise Exception(f"EasyOCR翻译失败: {str(e)}")
+
 # 健康检查接口
 @app.get("/health")
 def health_check():
