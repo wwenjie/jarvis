@@ -47,7 +47,7 @@ services:
   flower_infer:
     build:
       context: ..
-      dockerfile: py_server/Dockerfile
+      dockerfile: py_server/flower_infer/Dockerfile
     container_name: flower_infer
     # ports:
     #   - "8082:8082"
@@ -56,6 +56,25 @@ services:
       - /app/logs:/app/logs
     environment:
       - TZ=Asia/Shanghai
+    restart: unless-stopped
+    network_mode: host
+    cpus: 1.0
+    mem_limit: 2g
+
+  ocr_svr:
+    build:
+      context: ..
+      dockerfile: py_server/ocr_svr/Dockerfile
+    container_name: ocr_svr
+    # ports:
+    #   - "8083:8083"
+    volumes:
+      - /app/logs:/app/logs
+      - ../models/.EasyOCR:/app/.EasyOCR:ro
+    environment:
+      - TZ=Asia/Shanghai
+      - EASYOCR_MODULE_PATH=/app/.EasyOCR
+      - PYTHONPATH=/app
     restart: unless-stopped
     network_mode: host
     cpus: 1.0
