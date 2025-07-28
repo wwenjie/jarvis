@@ -80,6 +80,28 @@ services:
     cpus: 1.0
     mem_limit: 2g
 
+  agent:
+    build:
+      context: ..
+      dockerfile: py_server/agent/Dockerfile
+    container_name: agent
+    # ports:
+    #   - "8085:8085"
+    volumes:
+      - /app/logs:/app/logs
+    env_file:
+      - .env
+    environment:
+      - TZ=Asia/Shanghai
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      - BOCHA_API_KEY=${BOCHA_API_KEY}
+    restart: unless-stopped
+    depends_on:
+      - api_service
+    network_mode: host
+    cpus: 1.0
+    mem_limit: 2g
+
   api_gateway:
     build:
       context: ..
@@ -94,11 +116,9 @@ services:
       - .env
     environment:
       - TZ=Asia/Shanghai
-      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
-      - BOCHA_API_KEY=${BOCHA_API_KEY}
     restart: unless-stopped
     depends_on:
-      - api_service
+      - agent
     network_mode: host
     cpus: 1.0
     mem_limit: 2g

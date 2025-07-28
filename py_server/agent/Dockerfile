@@ -4,7 +4,7 @@ FROM python:3.10.12-slim AS builder
 RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple/
 
 # 复制requirements文件
-COPY web/requirements.txt ./
+COPY py_server/agent/requirements.txt ./
 
 # 安装Python依赖到临时目录
 RUN pip install --no-cache-dir --user -r requirements.txt
@@ -21,13 +21,13 @@ COPY --from=builder /root/.local /root/.local
 ENV PATH=/root/.local/bin:$PATH
 
 # 复制应用代码
-COPY web/ .
+COPY py_server/agent/ .
 
 # 创建日志目录
 RUN mkdir -p /app/logs
 
 # 暴露端口
-EXPOSE 8080
+EXPOSE 8085
 
 # 启动命令
-CMD ["python", "api_gateway.py"] 
+CMD ["python", "agent.py"] 

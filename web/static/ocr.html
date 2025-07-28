@@ -59,12 +59,14 @@
         <div v-if="error" class="mt-3 alert alert-danger">{{ error }}</div>
         <div v-if="result && result.success" class="mt-3">
           <div class="alert alert-success">共识别到 <b>{{ result.total_texts }}</b> 个文本区域：</div>
+          
+          <!-- 识别结果表格 -->
+          <h4 class="mt-4 mb-3">识别结果</h4>
           <table class="ocr-table">
             <thead>
               <tr>
                 <th>#</th>
-                <th>原文</th>
-                <th>翻译</th>
+                <th>识别的文本</th>
                 <th>置信度</th>
                 <th>位置</th>
               </tr>
@@ -73,12 +75,31 @@
               <tr v-for="(item, idx) in result.results" :key="idx">
                 <td>{{ idx + 1 }}</td>
                 <td>{{ item.text }}</td>
-                <td>{{ item.translation }}</td>
                 <td>{{ item.confidence ? item.confidence.toFixed(2) : '' }}</td>
                 <td>{{ item.bbox ? JSON.stringify(item.bbox) : '' }}</td>
               </tr>
             </tbody>
           </table>
+          
+          <!-- AI翻译结果表格 -->
+          <h4 class="mt-4 mb-3">AI翻译结果</h4>
+          <table class="ocr-table" v-if="result.predictions && result.predictions.length > 0">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>原文</th>
+                <th>翻译</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(item, idx) in result.predictions" :key="idx">
+                <td>{{ idx + 1 }}</td>
+                <td>{{ item.predicted_text || '-' }}</td>
+                <td>{{ item.predicted_translation || '-' }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div v-else class="alert alert-warning">暂无AI翻译结果</div>
         </div>
       </div>
     </div>
